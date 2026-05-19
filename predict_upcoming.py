@@ -16,6 +16,7 @@ from config import (
     NO_VIG_DRAW_COL,
     NO_VIG_HOME_COL,
     NO_VIG_OVER_COL,
+    NO_VIG_UNDER_COL,
     ODD_AWAY_COL,
     ODD_DRAW_COL,
     ODD_HOME_COL,
@@ -28,11 +29,23 @@ from config import (
     TARGET_COL,
 )
 from data_pipeline import (
+    add_elo_features,
+    add_elo_features_to_fixtures,
+    add_lineup_features,
+    add_match_stats_interaction_features,
+    add_match_importance_features,
     add_rolling_features,
+    add_referee_features_to_fixtures,
+    add_xg_interaction_features,
     add_target_and_drop_na,
+    build_current_elo_ratings,
     build_team_match_table,
     load_football_data,
     prepare_initial_data,
+    TEAM_MATCH_STAT_METRICS,
+    TEAM_XG_METRICS,
+    VENUE_MATCH_STAT_METRICS,
+    VENUE_XG_METRICS,
 )
 from fixtures import (
     build_bookmaker_odds_long,
@@ -41,16 +54,49 @@ from fixtures import (
     implied_probability_from_best_odd,
     load_upcoming_fixtures,
 )
+from filter_optimizer import load_positive_filter_rules
 from modeling import train_calibrated_xgboost_model
 from pipeline import (
     OVER_MARKET_FEATURES,
     RESULT_MARKET_FEATURES,
     prepare_market_dataset,
 )
+from understat_xg import merge_understat_xg_features
 
 
 UPCOMING_PREDICTIONS_FILE = "upcoming_predictions.csv"
 UPCOMING_ODDS_FILE = "upcoming_odds_by_bookmaker.csv"
+FilterRule = dict[str, float | str | None]
+EMPTY_UPCOMING_PREDICTION_COLUMNS = [
+    "FixtureId",
+    "MatchDatetime",
+    "MatchDatetimeBR",
+    "KickoffTimezone",
+    "Liga",
+    "HomeTeam",
+    "AwayTeam",
+    "Market",
+    "Selection",
+    "ModelProb",
+    "ImpliedProb",
+    "Edge",
+    "BestOdd",
+    "BestBookmaker",
+    "IsValueBet",
+]
+EMPTY_UPCOMING_ODDS_COLUMNS = [
+    "FixtureId",
+    "MatchDatetime",
+    "MatchDatetimeBR",
+    "KickoffTimezone",
+    "Liga",
+    "HomeTeam",
+    "AwayTeam",
+    "Market",
+    "Selection",
+    "Bookmaker",
+    "Odd",
+]
 
 
 def _rolling_mean_before_fixture(
@@ -76,6 +122,33 @@ def _rolling_mean_before_fixture(
     if len(values) < window:
         return np.nan
     return float(values.mean())
+
+
+def _days_since_before_fixture(
+    team_history: pd.DataFrame,
+    team: str,
+    fixture_datetime: pd.Timestamp,
+    side: str | None = None,
+) -> float:
+    """Calcula dias desde o ultimo jogo antes da fixture."""
+    mask = (
+        team_history["Team"].eq(team)
+        & team_history["MatchDatetime"].lt(fixture_datetime)
+    )
+    max_days = 21
+    if side is not None:
+        mask &= team_history["Side"].eq(side)
+        max_days = 35
+
+    previous_matches = team_history.loc[mask].sort_values(
+        ["MatchDatetime", "MatchId"],
+        kind="mergesort",
+    )
+    if previous_matches.empty:
+        return np.nan
+
+    days = (fixture_datetime - previous_matches.iloc[-1]["MatchDatetime"]).days
+    return float(min(max(days, 0), max_days))
 
 
 def _fixture_form_features(
@@ -117,6 +190,55 @@ def _fixture_form_features(
             "IsOver25",
             window,
         ),
+        "Home_Points_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "Points",
+            window,
+        ),
+        "Home_GoalDiff_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "GoalDiff",
+            window,
+        ),
+        "Home_WinRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "IsWin",
+            window,
+        ),
+        "Home_DrawRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "IsDraw",
+            window,
+        ),
+        "Home_LossRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "IsLoss",
+            window,
+        ),
+        "Home_CleanSheet_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "CleanSheet",
+            window,
+        ),
+        "Home_FailedToScore_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "FailedToScore",
+            window,
+        ),
         "Home_Home_GF_Roll5": _rolling_mean_before_fixture(
             team_history,
             home_team,
@@ -149,6 +271,41 @@ def _fixture_form_features(
             window,
             side="home",
         ),
+        "Home_Home_Points_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "Points",
+            window,
+            side="home",
+        ),
+        "Home_Home_WinRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "IsWin",
+            window,
+            side="home",
+        ),
+        "Home_Home_GoalDiff_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            "GoalDiff",
+            window,
+            side="home",
+        ),
+        "Home_RestDays": _days_since_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+        ),
+        "Home_Home_RestDays": _days_since_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            side="home",
+        ),
         "Away_GF_Roll5": _rolling_mean_before_fixture(
             team_history,
             away_team,
@@ -175,6 +332,55 @@ def _fixture_form_features(
             away_team,
             fixture_datetime,
             "IsOver25",
+            window,
+        ),
+        "Away_Points_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "Points",
+            window,
+        ),
+        "Away_GoalDiff_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "GoalDiff",
+            window,
+        ),
+        "Away_WinRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "IsWin",
+            window,
+        ),
+        "Away_DrawRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "IsDraw",
+            window,
+        ),
+        "Away_LossRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "IsLoss",
+            window,
+        ),
+        "Away_CleanSheet_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "CleanSheet",
+            window,
+        ),
+        "Away_FailedToScore_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "FailedToScore",
             window,
         ),
         "Away_Away_GF_Roll5": _rolling_mean_before_fixture(
@@ -209,7 +415,106 @@ def _fixture_form_features(
             window,
             side="away",
         ),
+        "Away_Away_Points_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "Points",
+            window,
+            side="away",
+        ),
+        "Away_Away_WinRate_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "IsWin",
+            window,
+            side="away",
+        ),
+        "Away_Away_GoalDiff_Roll5": _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            "GoalDiff",
+            window,
+            side="away",
+        ),
+        "Away_RestDays": _days_since_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+        ),
+        "Away_Away_RestDays": _days_since_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            side="away",
+        ),
     }
+    for metric in TEAM_MATCH_STAT_METRICS:
+        features[f"Home_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            metric,
+            window,
+        )
+        features[f"Away_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            metric,
+            window,
+        )
+    for metric in VENUE_MATCH_STAT_METRICS:
+        features[f"Home_Home_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            metric,
+            window,
+            side="home",
+        )
+        features[f"Away_Away_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            metric,
+            window,
+            side="away",
+        )
+    for metric in TEAM_XG_METRICS:
+        features[f"Home_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            metric,
+            window,
+        )
+        features[f"Away_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            metric,
+            window,
+        )
+    for metric in VENUE_XG_METRICS:
+        features[f"Home_Home_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            metric,
+            window,
+            side="home",
+        )
+        features[f"Away_Away_{metric}_Roll5"] = _rolling_mean_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            metric,
+            window,
+            side="away",
+        )
 
     features["Attack_Diff_Roll5"] = (
         features["Home_GF_Roll5"] - features["Away_GF_Roll5"]
@@ -254,6 +559,43 @@ def _fixture_form_features(
         + features["Away_GF_Roll5"]
         + features["Home_GA_Roll5"]
     ) / 2.0
+    features["Points_Diff_Roll5"] = (
+        features["Home_Points_Roll5"] - features["Away_Points_Roll5"]
+    )
+    features["GoalDiff_Diff_Roll5"] = (
+        features["Home_GoalDiff_Roll5"] - features["Away_GoalDiff_Roll5"]
+    )
+    features["WinRate_Diff_Roll5"] = (
+        features["Home_WinRate_Roll5"] - features["Away_WinRate_Roll5"]
+    )
+    features["LossRate_Diff_Roll5"] = (
+        features["Home_LossRate_Roll5"] - features["Away_LossRate_Roll5"]
+    )
+    features["CleanSheet_Diff_Roll5"] = (
+        features["Home_CleanSheet_Roll5"] - features["Away_CleanSheet_Roll5"]
+    )
+    features["FailedToScore_Diff_Roll5"] = (
+        features["Home_FailedToScore_Roll5"]
+        - features["Away_FailedToScore_Roll5"]
+    )
+    features["Venue_Points_Diff_Roll5"] = (
+        features["Home_Home_Points_Roll5"]
+        - features["Away_Away_Points_Roll5"]
+    )
+    features["Venue_WinRate_Diff_Roll5"] = (
+        features["Home_Home_WinRate_Roll5"]
+        - features["Away_Away_WinRate_Roll5"]
+    )
+    features["Venue_GoalDiff_Diff_Roll5"] = (
+        features["Home_Home_GoalDiff_Roll5"]
+        - features["Away_Away_GoalDiff_Roll5"]
+    )
+    features["RestDays_Diff"] = (
+        features["Home_RestDays"] - features["Away_RestDays"]
+    )
+    features["Venue_RestDays_Diff"] = (
+        features["Home_Home_RestDays"] - features["Away_Away_RestDays"]
+    )
     return features
 
 
@@ -280,7 +622,90 @@ def add_upcoming_rolling_features(
     ]
     feature_frame = pd.DataFrame(feature_rows, index=fixtures.index)
     featured_fixtures = pd.concat([fixtures.copy(), feature_frame], axis=1)
+    featured_fixtures = add_match_stats_interaction_features(featured_fixtures)
+    featured_fixtures = add_xg_interaction_features(featured_fixtures)
     return featured_fixtures.dropna(subset=list(feature_cols)).copy()
+
+
+def add_upcoming_match_importance_features(
+    historical_data: pd.DataFrame,
+    fixtures: pd.DataFrame,
+) -> pd.DataFrame:
+    """Adiciona importancia do jogo futuro com a tabela atual da liga."""
+    if fixtures.empty:
+        return fixtures.copy()
+
+    feature_frames = []
+    required_history_cols = [
+        "Liga",
+        "Temporada",
+        "MatchDatetime",
+        "HomeTeam",
+        "AwayTeam",
+        "FTHG",
+        "FTAG",
+    ]
+    for league, league_fixtures in fixtures.groupby("Liga", sort=False):
+        league_history = historical_data[
+            historical_data["Liga"].eq(league)
+        ].dropna(subset=["Temporada", "MatchDatetime"])
+        if league_history.empty:
+            feature_frames.append(league_fixtures)
+            continue
+
+        latest_season = (
+            league_history.sort_values("MatchDatetime", kind="mergesort")
+            .iloc[-1]["Temporada"]
+        )
+        season_history = league_history[
+            league_history["Temporada"].eq(latest_season)
+        ][required_history_cols].copy()
+
+        future_rows = league_fixtures.copy()
+        future_rows["Temporada"] = latest_season
+        future_rows["FTHG"] = np.nan
+        future_rows["FTAG"] = np.nan
+        future_rows["_FixtureIndex"] = future_rows.index
+
+        combined = pd.concat(
+            [
+                season_history,
+                future_rows[
+                    required_history_cols + ["_FixtureIndex"]
+                ],
+            ],
+            ignore_index=True,
+            sort=False,
+        )
+        combined["MatchId"] = np.arange(len(combined))
+        scored = add_match_importance_features(combined)
+        future_scored = scored[scored["_FixtureIndex"].notna()].copy()
+        future_scored["_FixtureIndex"] = future_scored["_FixtureIndex"].astype(int)
+        importance_cols = [
+            col for col in scored.columns if col.endswith("Importance")
+        ] + [
+            "Home_PreMatch_Rank",
+            "Away_PreMatch_Rank",
+            "Rank_Diff",
+            "Home_PreMatch_PointsPerGame",
+            "Away_PreMatch_PointsPerGame",
+            "PointsPerGame_Diff",
+            "Home_TitlePressure",
+            "Away_TitlePressure",
+            "Home_RelegationPressure",
+            "Away_RelegationPressure",
+            "Importance_Diff",
+            "TopClash",
+            "SeasonProgress",
+        ]
+        importance_cols = [
+            col for col in dict.fromkeys(importance_cols) if col in scored.columns
+        ]
+        future_scored = future_scored.set_index("_FixtureIndex")[importance_cols]
+        enriched = league_fixtures.join(future_scored, how="left")
+        feature_frames.append(enriched)
+
+    return pd.concat(feature_frames).sort_index()
 
 
 def _positive_class_probability(model, features: pd.DataFrame) -> np.ndarray:
@@ -312,6 +737,53 @@ def _base_prediction_columns(row: pd.Series) -> dict[str, object]:
         "Liga": row["Liga"],
         "HomeTeam": row["HomeTeam"],
         "AwayTeam": row["AwayTeam"],
+        "Home_Elo_Pre": row.get("Home_Elo_Pre", np.nan),
+        "Away_Elo_Pre": row.get("Away_Elo_Pre", np.nan),
+        "Elo_Diff": row.get("Elo_Diff", np.nan),
+        "Elo_Home_Adv_Diff": row.get("Elo_Home_Adv_Diff", np.nan),
+        "Elo_Expected_Home": row.get("Elo_Expected_Home", np.nan),
+        "Home_PreMatch_Rank": row.get("Home_PreMatch_Rank", np.nan),
+        "Away_PreMatch_Rank": row.get("Away_PreMatch_Rank", np.nan),
+        "MatchImportance": row.get("MatchImportance", np.nan),
+        "Home_MatchImportance": row.get("Home_MatchImportance", np.nan),
+        "Away_MatchImportance": row.get("Away_MatchImportance", np.nan),
+        "SeasonProgress": row.get("SeasonProgress", np.nan),
+        "Home_LineupDataAvailable": row.get("Home_LineupDataAvailable", np.nan),
+        "Away_LineupDataAvailable": row.get("Away_LineupDataAvailable", np.nan),
+        "Home_LineupConfirmed": row.get("Home_LineupConfirmed", np.nan),
+        "Away_LineupConfirmed": row.get("Away_LineupConfirmed", np.nan),
+        "LineupStrength_Diff": row.get("LineupStrength_Diff", np.nan),
+        "MissingStarters_Diff": row.get("MissingStarters_Diff", np.nan),
+        "MissingKeyPlayers_Diff": row.get("MissingKeyPlayers_Diff", np.nan),
+        "Home_MatchStatsAvailable_Roll5": row.get(
+            "Home_MatchStatsAvailable_Roll5",
+            np.nan,
+        ),
+        "Away_MatchStatsAvailable_Roll5": row.get(
+            "Away_MatchStatsAvailable_Roll5",
+            np.nan,
+        ),
+        "ShotsOnTarget_Total_Roll5": row.get(
+            "ShotsOnTarget_Total_Roll5",
+            np.nan,
+        ),
+        "Corners_Total_Roll5": row.get("Corners_Total_Roll5", np.nan),
+        "Over25_ImpliedMove": row.get("Over25_ImpliedMove", np.nan),
+        "Result_ClosingAvailable": row.get("Result_ClosingAvailable", np.nan),
+        "Referee_DataAvailable_Roll20": row.get(
+            "Referee_DataAvailable_Roll20",
+            np.nan,
+        ),
+        "Home_xGAvailable_Roll5": row.get("Home_xGAvailable_Roll5", np.nan),
+        "Away_xGAvailable_Roll5": row.get("Away_xGAvailable_Roll5", np.nan),
+        "Home_xGFor_Roll5": row.get("Home_xGFor_Roll5", np.nan),
+        "Away_xGFor_Roll5": row.get("Away_xGFor_Roll5", np.nan),
+        "xG_Total_Roll5": row.get("xG_Total_Roll5", np.nan),
+        "xG_Expected_Total_Match_Roll5": row.get(
+            "xG_Expected_Total_Match_Roll5",
+            np.nan,
+        ),
+        "xG_Diff_Roll5": row.get("xG_Diff_Roll5", np.nan),
     }
 
 
@@ -331,11 +803,72 @@ def _passes_filters(
     return max_odd is None or odd <= max_odd
 
 
+def _default_filter_rule(config: PipelineConfig, market: str) -> FilterRule:
+    """Retorna a regra padrao de filtros por mercado."""
+    if market == "Over 2.5":
+        return {
+            "source": "Padrao",
+            "edge_threshold": config.edge,
+            "min_model_prob": config.min_model_prob,
+            "max_odd": config.max_over_odd,
+            "eval_roi": np.nan,
+            "eval_bets": np.nan,
+        }
+    if market == "Under 2.5":
+        return {
+            "source": "Padrao",
+            "edge_threshold": config.edge,
+            "min_model_prob": config.min_under_prob,
+            "max_odd": config.max_under_odd,
+            "eval_roi": np.nan,
+            "eval_bets": np.nan,
+        }
+    if market == "Resultado 1X2":
+        return {
+            "source": "Padrao",
+            "edge_threshold": config.edge,
+            "min_model_prob": config.min_result_prob,
+            "max_odd": config.max_result_odd,
+            "eval_roi": np.nan,
+            "eval_bets": np.nan,
+        }
+    return {
+        "source": "Padrao",
+        "edge_threshold": config.edge,
+        "min_model_prob": config.min_win_prob,
+        "max_odd": config.max_win_odd,
+        "eval_roi": np.nan,
+        "eval_bets": np.nan,
+    }
+
+
+def _resolve_filter_rule(
+    config: PipelineConfig,
+    market: str,
+    optimized_rules: dict[str, FilterRule],
+) -> FilterRule:
+    """Usa regra otimizada se ela passou na avaliacao; senao usa padrao."""
+    return optimized_rules.get(market, _default_filter_rule(config, market))
+
+
+def _rule_columns(rule: FilterRule) -> dict[str, float | str | None]:
+    """Campos de auditoria da regra usada no palpite."""
+    return {
+        "RuleSource": rule["source"],
+        "RuleEdgeThreshold": rule["edge_threshold"],
+        "RuleMinModelProb": rule["min_model_prob"],
+        "RuleMaxOdd": rule["max_odd"],
+        "RuleEvalROI": rule["eval_roi"],
+        "RuleEvalBets": rule["eval_bets"],
+    }
+
+
 def score_over25_predictions(
     fixtures: pd.DataFrame,
     model,
     feature_cols: Sequence[str],
     config: PipelineConfig,
+    filter_rule: FilterRule,
 ) -> pd.DataFrame:
     """Gera palpites futuros para Over 2.5."""
     model_cols = list(feature_cols) + OVER_MARKET_FEATURES
@@ -361,9 +894,9 @@ def score_over25_predictions(
             edge,
             model_prob,
             odd,
-            config.edge,
-            config.min_model_prob,
-            config.max_over_odd,
+            float(filter_rule["edge_threshold"]),
+            float(filter_rule["min_model_prob"]),
+            filter_rule["max_odd"],
         )
         for edge, model_prob, odd in zip(
             scored["Edge"],
@@ -386,6 +919,76 @@ def score_over25_predictions(
                 "NoVigProb": row["NoVigProb"],
                 "Edge": row["Edge"],
                 "IsValueBet": row["IsValueBet"],
+                **_rule_columns(filter_rule),
+                "Model_Prob_H": np.nan,
+                "Model_Prob_D": np.nan,
+                "Model_Prob_A": np.nan,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def score_under25_predictions(
+    fixtures: pd.DataFrame,
+    model,
+    feature_cols: Sequence[str],
+    config: PipelineConfig,
+    filter_rule: FilterRule,
+) -> pd.DataFrame:
+    """Gera palpites futuros para Under 2.5."""
+    model_cols = list(feature_cols) + OVER_MARKET_FEATURES
+    required_cols = model_cols + ["Best_Odd_Under25"]
+    mask = has_over_under_odds(fixtures) & fixtures[required_cols].notna().all(axis=1)
+    scored = fixtures.loc[mask].copy()
+
+    if scored.empty:
+        return pd.DataFrame()
+
+    over_probabilities = _positive_class_probability(
+        model,
+        scored.loc[:, model_cols],
+    )
+    scored["ModelProb"] = 1.0 - over_probabilities
+    scored["BestOdd"] = scored["Best_Odd_Under25"]
+    scored["BestBookmaker"] = scored["Best_Bookmaker_Under25"]
+    scored["ImpliedProb"] = implied_probability_from_best_odd(
+        scored,
+        "Best_Odd_Under25",
+    )
+    scored["NoVigProb"] = scored[NO_VIG_UNDER_COL]
+    scored["Edge"] = scored["ModelProb"] - scored["ImpliedProb"]
+    scored["IsValueBet"] = [
+        _passes_filters(
+            edge,
+            model_prob,
+            odd,
+            float(filter_rule["edge_threshold"]),
+            float(filter_rule["min_model_prob"]),
+            filter_rule["max_odd"],
+        )
+        for edge, model_prob, odd in zip(
+            scored["Edge"],
+            scored["ModelProb"],
+            scored["BestOdd"],
+        )
+    ]
+
+    rows = []
+    for _, row in scored.iterrows():
+        rows.append(
+            {
+                **_base_prediction_columns(row),
+                "Market": "Under 2.5",
+                "Selection": "Under 2.5",
+                "BestBookmaker": row["BestBookmaker"],
+                "BestOdd": row["BestOdd"],
+                "ModelProb": row["ModelProb"],
+                "ImpliedProb": row["ImpliedProb"],
+                "NoVigProb": row["NoVigProb"],
+                "Edge": row["Edge"],
+                "IsValueBet": row["IsValueBet"],
+                **_rule_columns(filter_rule),
                 "Model_Prob_H": np.nan,
                 "Model_Prob_D": np.nan,
                 "Model_Prob_A": np.nan,
@@ -453,6 +1056,7 @@ def score_result_predictions(
     model,
     feature_cols: Sequence[str],
     config: PipelineConfig,
+    filter_rule: FilterRule,
 ) -> pd.DataFrame:
     """Gera palpites futuros para Resultado Final 1X2."""
     model_cols = list(feature_cols) + RESULT_MARKET_FEATURES
@@ -477,9 +1081,9 @@ def score_result_predictions(
             edge,
             model_prob,
             odd,
-            config.edge,
-            config.min_result_prob,
-            config.max_result_odd,
+            float(filter_rule["edge_threshold"]),
+            float(filter_rule["min_model_prob"]),
+            filter_rule["max_odd"],
         )
         for edge, model_prob, odd in zip(
             result_frame["Edge"],
@@ -487,6 +1091,8 @@ def score_result_predictions(
             result_frame["BestOdd"],
         )
     ]
+    for key, value in _rule_columns(filter_rule).items():
+        result_frame[key] = value
     return result_frame
 
 
@@ -495,6 +1101,7 @@ def score_win_predictions(
     model,
     feature_cols: Sequence[str],
     config: PipelineConfig,
+    filter_rule: FilterRule,
 ) -> pd.DataFrame:
     """Gera palpites futuros apenas para vitoria casa/fora."""
     model_cols = list(feature_cols) + RESULT_MARKET_FEATURES
@@ -519,9 +1126,9 @@ def score_win_predictions(
             edge,
             model_prob,
             odd,
-            config.edge,
-            config.min_win_prob,
-            config.max_win_odd,
+            float(filter_rule["edge_threshold"]),
+            float(filter_rule["min_model_prob"]),
+            filter_rule["max_odd"],
         )
         for edge, model_prob, odd in zip(
             win_frame["Edge"],
@@ -529,21 +1136,43 @@ def score_win_predictions(
             win_frame["BestOdd"],
         )
     ]
+    for key, value in _rule_columns(filter_rule).items():
+        win_frame[key] = value
     return win_frame
 
 
 def build_historical_model_data(
     config: PipelineConfig,
-) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
+) -> tuple[pd.DataFrame, pd.DataFrame, list[str], dict[str, float]]:
     """Carrega historico, cria features e retorna dataset modelavel."""
     raw_data = load_football_data(config.leagues, config.seasons, config.raw_dir)
     prepared_data, *_ = prepare_initial_data(raw_data)
+    prepared_data = merge_understat_xg_features(
+        prepared_data,
+        cache_dir=config.understat_xg_dir,
+        enabled=config.use_understat_xg,
+        force_refresh=config.force_refresh_understat_xg,
+    )
+    elo_ratings = build_current_elo_ratings(
+        prepared_data,
+        initial_rating=config.elo_initial,
+        k_factor=config.elo_k_factor,
+        home_advantage=config.elo_home_advantage,
+    )
+    prepared_data = add_elo_features(
+        prepared_data,
+        initial_rating=config.elo_initial,
+        k_factor=config.elo_k_factor,
+        home_advantage=config.elo_home_advantage,
+    )
     featured_data, feature_cols = add_rolling_features(
         prepared_data,
         window=config.rolling_window,
+        feature_profile=config.feature_profile,
+        lineup_features_path=config.lineup_features_path,
     )
     model_data = add_target_and_drop_na(featured_data, feature_cols)
-    return prepared_data, model_data, feature_cols
+    return prepared_data, model_data, feature_cols, elo_ratings
 
 
 def generate_upcoming_predictions(
@@ -564,15 +1193,34 @@ def generate_upcoming_predictions(
     odds_path = config.output_dir / UPCOMING_ODDS_FILE
 
     if fixtures.empty:
-        pd.DataFrame().to_csv(predictions_path, index=False, encoding="utf-8-sig")
-        pd.DataFrame().to_csv(odds_path, index=False, encoding="utf-8-sig")
+        pd.DataFrame(columns=EMPTY_UPCOMING_PREDICTION_COLUMNS).to_csv(
+            predictions_path,
+            index=False,
+            encoding="utf-8-sig",
+        )
+        pd.DataFrame(columns=EMPTY_UPCOMING_ODDS_COLUMNS).to_csv(
+            odds_path,
+            index=False,
+            encoding="utf-8-sig",
+        )
         print("[fixtures] Nenhum jogo futuro encontrado para os filtros atuais.")
         return pd.DataFrame(), pd.DataFrame()
 
     bookmaker_odds = build_bookmaker_odds_long(fixtures)
     bookmaker_odds.to_csv(odds_path, index=False, encoding="utf-8-sig")
 
-    prepared_data, model_data, feature_cols = build_historical_model_data(config)
+    prepared_data, model_data, feature_cols, elo_ratings = build_historical_model_data(
+        config
+    )
+    fixtures = add_elo_features_to_fixtures(
+        fixtures,
+        elo_ratings,
+        initial_rating=config.elo_initial,
+        home_advantage=config.elo_home_advantage,
+    )
+    fixtures = add_upcoming_match_importance_features(prepared_data, fixtures)
+    fixtures = add_lineup_features(fixtures, config.lineup_features_path)
+    fixtures = add_referee_features_to_fixtures(prepared_data, fixtures)
     featured_fixtures = add_upcoming_rolling_features(
         prepared_data,
         fixtures,
@@ -581,13 +1229,32 @@ def generate_upcoming_predictions(
     )
 
     if featured_fixtures.empty:
-        pd.DataFrame().to_csv(predictions_path, index=False, encoding="utf-8-sig")
+        pd.DataFrame(columns=EMPTY_UPCOMING_PREDICTION_COLUMNS).to_csv(
+            predictions_path,
+            index=False,
+            encoding="utf-8-sig",
+        )
         print("[features] Nenhuma fixture com historico suficiente para prever.")
         return pd.DataFrame(), bookmaker_odds
 
+    optimized_rules = (
+        load_positive_filter_rules(
+            config.output_dir,
+            min_eval_roi=config.min_optimized_eval_roi,
+            min_eval_bets=config.min_optimized_eval_bets,
+        )
+        if config.use_optimized_filters_for_upcoming
+        else {}
+    )
+    if optimized_rules:
+        markets_text = ", ".join(sorted(optimized_rules))
+        print(f"[filtros] Usando regras otimizadas para: {markets_text}")
+    else:
+        print("[filtros] Usando filtros padrao para todos os mercados.")
+
     prediction_frames: list[pd.DataFrame] = []
 
-    if "over25" in config.markets:
+    if "over25" in config.markets or "under25" in config.markets:
         over_data, over_feature_cols = prepare_market_dataset(
             model_data,
             feature_cols,
@@ -595,23 +1262,37 @@ def generate_upcoming_predictions(
             OVER_MARKET_FEATURES,
         )
         if not over_data.empty:
-            print("[modelo] Treinando modelo final Over 2.5...")
+            print("[modelo] Treinando modelo final Over/Under 2.5...")
             over_model = train_calibrated_xgboost_model(
                 over_data.loc[:, over_feature_cols],
                 over_data[TARGET_COL],
                 config.calibration_size,
                 config.calibration_method,
+                config.xgb_tuning_trials,
+                config.xgb_tuning_validation_size,
             )
-            prediction_frames.append(
-                score_over25_predictions(
-                    featured_fixtures,
-                    over_model,
-                    feature_cols,
-                    config,
+            if "over25" in config.markets:
+                prediction_frames.append(
+                    score_over25_predictions(
+                        featured_fixtures,
+                        over_model,
+                        feature_cols,
+                        config,
+                        _resolve_filter_rule(config, "Over 2.5", optimized_rules),
+                    )
                 )
-            )
+            if "under25" in config.markets:
+                prediction_frames.append(
+                    score_under25_predictions(
+                        featured_fixtures,
+                        over_model,
+                        feature_cols,
+                        config,
+                        _resolve_filter_rule(config, "Under 2.5", optimized_rules),
+                    )
+                )
         else:
-            print("[aviso] Over 2.5 sem dados/odds suficientes para prever.")
+            print("[aviso] Over/Under 2.5 sem dados/odds suficientes para prever.")
 
     if "result" in config.markets or "win" in config.markets:
         result_data, result_feature_cols = prepare_market_dataset(
@@ -627,6 +1308,8 @@ def generate_upcoming_predictions(
                 result_data[RESULT_TARGET_COL],
                 config.calibration_size,
                 config.calibration_method,
+                config.xgb_tuning_trials,
+                config.xgb_tuning_validation_size,
             )
             if "result" in config.markets:
                 prediction_frames.append(
@@ -635,6 +1318,11 @@ def generate_upcoming_predictions(
                         result_model,
                         feature_cols,
                         config,
+                        _resolve_filter_rule(
+                            config,
+                            "Resultado 1X2",
+                            optimized_rules,
+                        ),
                     )
                 )
             if "win" in config.markets:
@@ -644,6 +1332,11 @@ def generate_upcoming_predictions(
                         result_model,
                         feature_cols,
                         config,
+                        _resolve_filter_rule(
+                            config,
+                            "Vitoria Casa/Fora",
+                            optimized_rules,
+                        ),
                     )
                 )
         else:
@@ -682,12 +1375,35 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
     parser.add_argument(
         "--markets",
         nargs="+",
-        choices=["over25", "result", "win", "all"],
+        choices=["over25", "under25", "result", "win", "all"],
         default=["all"],
     )
     parser.add_argument("--days-ahead", type=int, default=7)
     parser.add_argument("--raw-dir", default="raw_data")
     parser.add_argument("--output-dir", default="outputs")
+    parser.add_argument(
+        "--lineup-features-path",
+        default="raw_data/lineup_features.csv",
+        help=(
+            "CSV opcional com escalações/desfalques por time. Use vazio "
+            "para desativar."
+        ),
+    )
+    parser.add_argument(
+        "--understat-xg-dir",
+        default="raw_data/understat_xg",
+        help="Pasta de cache para xG historico do Understat.",
+    )
+    parser.add_argument(
+        "--no-understat-xg",
+        action="store_true",
+        help="Desativa a coleta/uso de xG do Understat.",
+    )
+    parser.add_argument(
+        "--force-refresh-understat-xg",
+        action="store_true",
+        help="Forca novo download do cache de xG do Understat.",
+    )
     parser.add_argument("--rolling-window", type=int, default=5)
     parser.add_argument("--calibration-size", type=float, default=0.20)
     parser.add_argument(
@@ -699,10 +1415,57 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
     parser.add_argument("--edge", type=float, default=0.05)
     parser.add_argument("--min-model-prob", type=float, default=0.55)
     parser.add_argument("--max-over-odd", type=float, default=1.80)
+    parser.add_argument("--min-under-prob", type=float, default=0.55)
+    parser.add_argument("--max-under-odd", type=float, default=1.80)
     parser.add_argument("--min-result-prob", type=float, default=0.48)
     parser.add_argument("--max-result-odd", type=float, default=2.50)
     parser.add_argument("--min-win-prob", type=float, default=0.50)
     parser.add_argument("--max-win-odd", type=float, default=2.50)
+    parser.add_argument("--elo-initial", type=float, default=1500.0)
+    parser.add_argument("--elo-k-factor", type=float, default=20.0)
+    parser.add_argument("--elo-home-advantage", type=float, default=65.0)
+    parser.add_argument(
+        "--feature-profile",
+        choices=["base", "extended"],
+        default="extended",
+        help=(
+            "Perfil de features do modelo. 'base' usa sinais estaveis; "
+            "'extended' inclui estatisticas de jogo, forma, descanso, "
+            "importancia e movimento de odds."
+        ),
+    )
+    parser.add_argument(
+        "--xgb-tuning-trials",
+        type=int,
+        default=0,
+        help=(
+            "Numero de perfis XGBoost testados em validacao temporal. "
+            "Use 0 para desativar."
+        ),
+    )
+    parser.add_argument(
+        "--xgb-tuning-validation-size",
+        type=float,
+        default=0.20,
+        help="Percentual do treino base usado para escolher hiperparametros.",
+    )
+    parser.add_argument(
+        "--ignore-optimized-filters",
+        action="store_true",
+        help="Usa filtros padrao mesmo se houver regras otimizadas positivas.",
+    )
+    parser.add_argument(
+        "--min-optimized-eval-roi",
+        type=float,
+        default=0.0,
+        help="ROI minimo na avaliacao para liberar filtro otimizado futuro.",
+    )
+    parser.add_argument(
+        "--min-optimized-eval-bets",
+        type=int,
+        default=10,
+        help="Volume minimo de apostas na avaliacao para liberar filtro otimizado.",
+    )
     parser.add_argument(
         "--force-refresh-fixtures",
         action="store_true",
@@ -710,8 +1473,13 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
     )
 
     args = parser.parse_args()
-    markets = ["over25", "result", "win"] if "all" in args.markets else args.markets
+    markets = (
+        ["over25", "under25", "result", "win"]
+        if "all" in args.markets
+        else args.markets
+    )
     max_over_odd = args.max_over_odd if args.max_over_odd > 0 else None
+    max_under_odd = args.max_under_odd if args.max_under_odd > 0 else None
     max_result_odd = args.max_result_odd if args.max_result_odd > 0 else None
     max_win_odd = args.max_win_odd if args.max_win_odd > 0 else None
 
@@ -721,6 +1489,14 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         markets=markets,
         raw_dir=Path(args.raw_dir),
         output_dir=Path(args.output_dir),
+        lineup_features_path=(
+            Path(args.lineup_features_path)
+            if args.lineup_features_path
+            else None
+        ),
+        understat_xg_dir=Path(args.understat_xg_dir),
+        use_understat_xg=not args.no_understat_xg,
+        force_refresh_understat_xg=args.force_refresh_understat_xg,
         rolling_window=args.rolling_window,
         calibration_size=args.calibration_size,
         calibration_method=args.calibration_method,
@@ -729,10 +1505,21 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         edge=args.edge,
         min_model_prob=args.min_model_prob,
         max_over_odd=max_over_odd,
+        min_under_prob=args.min_under_prob,
+        max_under_odd=max_under_odd,
         min_result_prob=args.min_result_prob,
         max_result_odd=max_result_odd,
         min_win_prob=args.min_win_prob,
         max_win_odd=max_win_odd,
+        elo_initial=args.elo_initial,
+        elo_k_factor=args.elo_k_factor,
+        elo_home_advantage=args.elo_home_advantage,
+        feature_profile=args.feature_profile,
+        xgb_tuning_trials=args.xgb_tuning_trials,
+        xgb_tuning_validation_size=args.xgb_tuning_validation_size,
+        use_optimized_filters_for_upcoming=not args.ignore_optimized_filters,
+        min_optimized_eval_roi=args.min_optimized_eval_roi,
+        min_optimized_eval_bets=args.min_optimized_eval_bets,
     )
     return config, args.days_ahead, args.force_refresh_fixtures
 

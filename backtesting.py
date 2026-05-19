@@ -12,10 +12,12 @@ from config import (
     NO_VIG_DRAW_COL,
     NO_VIG_HOME_COL,
     NO_VIG_OVER_COL,
+    NO_VIG_UNDER_COL,
     ODD_AWAY_COL,
     ODD_DRAW_COL,
     ODD_HOME_COL,
     ODD_OVER_COL,
+    ODD_UNDER_COL,
     PipelineConfig,
     RESULT_LABELS,
     RESULT_NAME_MAP,
@@ -82,6 +84,75 @@ def run_backtest(
     avg_edge = float(bets["Edge"].mean()) if len(bets) else 0.0
     avg_model_prob = float(bets["Model_Prob_Over25"].mean()) if len(bets) else 0.0
     avg_odd = float(bets[ODD_OVER_COL].mean()) if len(bets) else 0.0
+
+    summary = {
+        "bets": float(len(bets)),
+        "total_staked": total_staked,
+        "total_profit": total_profit,
+        "roi": roi,
+        "hit_rate": hit_rate,
+        "avg_edge": avg_edge,
+        "avg_model_prob": avg_model_prob,
+        "avg_odd": avg_odd,
+    }
+
+    return backtest, summary
+
+
+def run_under25_backtest(
+    test_data: pd.DataFrame,
+    over_probabilities: np.ndarray,
+    stake: float = 10.0,
+    edge: float = 0.05,
+    min_model_prob: float = 0.55,
+    max_under_odd: float | None = None,
+) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Simula apostas fixas no Under 2.5 usando 1 - probabilidade de Over."""
+    backtest = test_data.copy()
+    if NO_VIG_UNDER_COL not in backtest.columns:
+        backtest = add_no_vig_market_probabilities(backtest)
+
+    backtest["Model_Prob_Over25"] = over_probabilities
+    backtest["Model_Prob_Under25"] = 1.0 - over_probabilities
+    backtest["Under25"] = backtest[TARGET_COL].eq(0).astype(int)
+    backtest["Under_Edge"] = (
+        backtest["Model_Prob_Under25"] - backtest[NO_VIG_UNDER_COL]
+    )
+    backtest["Pass_Edge_Filter"] = backtest["Under_Edge"] >= edge
+    backtest["Pass_Prob_Filter"] = (
+        backtest["Model_Prob_Under25"] >= min_model_prob
+    )
+    if max_under_odd is None:
+        backtest["Pass_Odd_Filter"] = True
+    else:
+        backtest["Pass_Odd_Filter"] = backtest[ODD_UNDER_COL] <= max_under_odd
+
+    backtest["Bet_Under25"] = (
+        backtest["Pass_Edge_Filter"]
+        & backtest["Pass_Prob_Filter"]
+        & backtest["Pass_Odd_Filter"]
+    )
+    backtest["Stake"] = np.where(backtest["Bet_Under25"], stake, 0.0)
+    backtest["Profit"] = np.where(
+        ~backtest["Bet_Under25"],
+        0.0,
+        np.where(
+            backtest[TARGET_COL].eq(0),
+            stake * (backtest[ODD_UNDER_COL] - 1.0),
+            -stake,
+        ),
+    )
+
+    bets = backtest[backtest["Bet_Under25"]].copy()
+    total_staked = float(bets["Stake"].sum())
+    total_profit = float(bets["Profit"].sum())
+    roi = total_profit / total_staked if total_staked > 0 else 0.0
+    hit_rate = float(bets["Under25"].mean()) if len(bets) else 0.0
+    avg_edge = float(bets["Under_Edge"].mean()) if len(bets) else 0.0
+    avg_model_prob = (
+        float(bets["Model_Prob_Under25"].mean()) if len(bets) else 0.0
+    )
+    avg_odd = float(bets[ODD_UNDER_COL].mean()) if len(bets) else 0.0
 
     summary = {
         "bets": float(len(bets)),
@@ -290,6 +361,10 @@ def print_results(
     print(f"Acuracia:                 {metrics['accuracy']:.2%}")
     print(f"Precisao ao prever Over:  {metrics['precision_over']:.2%}")
     print(f"LogLoss:                  {metrics['logloss']:.4f}")
+    if "brier_score" in metrics:
+        print(f"Brier Score:              {metrics['brier_score']:.4f}")
+    if "calibration_ece" in metrics:
+        print(f"Erro calibracao (ECE):    {metrics['calibration_ece']:.2%}")
 
     print("\n========== BACKTEST OVER 2.5 +EV ==========")
     print("Prob. referencia:         No-vig Over 2.5")
@@ -298,6 +373,41 @@ def print_results(
     print(f"Prob. minima modelo:      {min_model_prob:.2%}")
     if max_over_odd is not None:
         print(f"Odd maxima Over:          {max_over_odd:.2f}")
+    print(f"Apostas simuladas:        {backtest_summary['bets']:.0f}")
+    print(f"Total apostado:           R$ {backtest_summary['total_staked']:.2f}")
+    print(f"Lucro/Prejuizo:           R$ {backtest_summary['total_profit']:.2f}")
+    print(f"ROI:                      {backtest_summary['roi']:.2%}")
+    print(f"Taxa de acerto apostas:   {backtest_summary['hit_rate']:.2%}")
+    print(f"Edge medio das apostas:   {backtest_summary['avg_edge']:.2%}")
+    print(f"Prob. media modelo:       {backtest_summary['avg_model_prob']:.2%}")
+    print(f"Odd media das apostas:    {backtest_summary['avg_odd']:.2f}")
+
+
+def print_under25_results(
+    metrics: dict[str, float],
+    backtest_summary: dict[str, float],
+    stake: float,
+    edge: float,
+    min_model_prob: float,
+    max_under_odd: float | None,
+) -> None:
+    """Imprime metricas finais do mercado Under 2.5."""
+    print("\n========== RESULTADOS DO MODELO ==========")
+    print(f"Acuracia:                 {metrics['accuracy']:.2%}")
+    print(f"Precisao ao prever Over:  {metrics['precision_over']:.2%}")
+    print(f"LogLoss:                  {metrics['logloss']:.4f}")
+    if "brier_score" in metrics:
+        print(f"Brier Score:              {metrics['brier_score']:.4f}")
+    if "calibration_ece" in metrics:
+        print(f"Erro calibracao (ECE):    {metrics['calibration_ece']:.2%}")
+
+    print("\n========== BACKTEST UNDER 2.5 +EV ==========")
+    print("Prob. referencia:         No-vig Under 2.5")
+    print(f"Stake fixa:               R$ {stake:.2f}")
+    print(f"Edge minimo:              {edge:.2%}")
+    print(f"Prob. minima modelo:      {min_model_prob:.2%}")
+    if max_under_odd is not None:
+        print(f"Odd maxima Under:         {max_under_odd:.2f}")
     print(f"Apostas simuladas:        {backtest_summary['bets']:.0f}")
     print(f"Total apostado:           R$ {backtest_summary['total_staked']:.2f}")
     print(f"Lucro/Prejuizo:           R$ {backtest_summary['total_profit']:.2f}")
@@ -323,6 +433,10 @@ def print_match_result_results(
     print(f"Precisao Empate:          {metrics['precision_d']:.2%}")
     print(f"Precisao Fora:            {metrics['precision_a']:.2%}")
     print(f"LogLoss:                  {metrics['logloss']:.4f}")
+    if "brier_score" in metrics:
+        print(f"Brier Score:              {metrics['brier_score']:.4f}")
+    if "calibration_ece" in metrics:
+        print(f"Erro calibracao (ECE):    {metrics['calibration_ece']:.2%}")
 
     print("\n========== BACKTEST RESULTADO FINAL 1X2 +EV ==========")
     print("Prob. referencia:         No-vig 1X2")
@@ -355,6 +469,10 @@ def print_win_results(
     print(f"Precisao Casa:            {metrics['precision_h']:.2%}")
     print(f"Precisao Fora:            {metrics['precision_a']:.2%}")
     print(f"LogLoss 1X2 base:         {metrics['logloss']:.4f}")
+    if "brier_score" in metrics:
+        print(f"Brier Score 1X2:          {metrics['brier_score']:.4f}")
+    if "calibration_ece" in metrics:
+        print(f"Erro calibracao (ECE):    {metrics['calibration_ece']:.2%}")
 
     print("\n========== BACKTEST VITORIA CASA/FORA +EV ==========")
     print("Prob. referencia:         No-vig 1X2")
@@ -421,6 +539,8 @@ def run_walk_forward_validation(
             y_train,
             config.calibration_size,
             config.calibration_method,
+            config.xgb_tuning_trials,
+            config.xgb_tuning_validation_size,
         )
         probabilities = model.predict_proba(x_test)[:, 1]
         metrics = evaluate_model(y_test, probabilities)
@@ -445,6 +565,8 @@ def run_walk_forward_validation(
                 "accuracy": metrics["accuracy"],
                 "precision_over": metrics["precision_over"],
                 "logloss": metrics["logloss"],
+                "brier_score": metrics["brier_score"],
+                "calibration_ece": metrics["calibration_ece"],
                 "bets": backtest_summary["bets"],
                 "total_staked": backtest_summary["total_staked"],
                 "total_profit": backtest_summary["total_profit"],
@@ -471,6 +593,8 @@ def run_walk_forward_validation(
     print(f"Folds:                    {len(summary)}")
     print(f"Acuracia media:           {summary['accuracy'].mean():.2%}")
     print(f"LogLoss medio:            {summary['logloss'].mean():.4f}")
+    print(f"Brier medio:              {summary['brier_score'].mean():.4f}")
+    print(f"ECE medio:                {summary['calibration_ece'].mean():.2%}")
     print(f"Apostas simuladas:        {summary['bets'].sum():.0f}")
     print(f"Taxa de acerto apostas:   {weighted_hit_rate:.2%}")
     print(f"Total apostado:           R$ {total_staked:.2f}")
@@ -525,6 +649,8 @@ def run_match_result_walk_forward_validation(
             y_train,
             config.calibration_size,
             config.calibration_method,
+            config.xgb_tuning_trials,
+            config.xgb_tuning_validation_size,
         )
         probabilities = model.predict_proba(x_test)
         metrics = evaluate_match_result_model(y_test, probabilities)
@@ -551,6 +677,8 @@ def run_match_result_walk_forward_validation(
                 "precision_d": metrics["precision_d"],
                 "precision_a": metrics["precision_a"],
                 "logloss": metrics["logloss"],
+                "brier_score": metrics["brier_score"],
+                "calibration_ece": metrics["calibration_ece"],
                 "bets": backtest_summary["bets"],
                 "total_staked": backtest_summary["total_staked"],
                 "total_profit": backtest_summary["total_profit"],
@@ -577,6 +705,8 @@ def run_match_result_walk_forward_validation(
     print(f"Folds:                    {len(summary)}")
     print(f"Acuracia media:           {summary['accuracy'].mean():.2%}")
     print(f"LogLoss medio:            {summary['logloss'].mean():.4f}")
+    print(f"Brier medio:              {summary['brier_score'].mean():.4f}")
+    print(f"ECE medio:                {summary['calibration_ece'].mean():.2%}")
     print(f"Apostas simuladas:        {summary['bets'].sum():.0f}")
     print(f"Taxa de acerto apostas:   {weighted_hit_rate:.2%}")
     print(f"Total apostado:           R$ {total_staked:.2f}")
@@ -631,6 +761,8 @@ def run_win_walk_forward_validation(
             y_train,
             config.calibration_size,
             config.calibration_method,
+            config.xgb_tuning_trials,
+            config.xgb_tuning_validation_size,
         )
         probabilities = model.predict_proba(x_test)
         metrics = evaluate_match_result_model(y_test, probabilities)
@@ -656,6 +788,8 @@ def run_win_walk_forward_validation(
                 "precision_h": metrics["precision_h"],
                 "precision_a": metrics["precision_a"],
                 "logloss": metrics["logloss"],
+                "brier_score": metrics["brier_score"],
+                "calibration_ece": metrics["calibration_ece"],
                 "bets": backtest_summary["bets"],
                 "total_staked": backtest_summary["total_staked"],
                 "total_profit": backtest_summary["total_profit"],
@@ -682,6 +816,8 @@ def run_win_walk_forward_validation(
     print(f"Folds:                    {len(summary)}")
     print(f"Acuracia 1X2 media:       {summary['accuracy'].mean():.2%}")
     print(f"LogLoss 1X2 medio:        {summary['logloss'].mean():.4f}")
+    print(f"Brier 1X2 medio:          {summary['brier_score'].mean():.4f}")
+    print(f"ECE medio:                {summary['calibration_ece'].mean():.2%}")
     print(f"Apostas simuladas:        {summary['bets'].sum():.0f}")
     print(f"Taxa de acerto apostas:   {weighted_hit_rate:.2%}")
     print(f"Total apostado:           R$ {total_staked:.2f}")

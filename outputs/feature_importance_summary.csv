@@ -1,0 +1,472 @@
+﻿Market,Feature,Importance,ImportanceShare,Rank
+Total Gols 2.5,Odd_Under25,0.038220115,0.03822012,1
+Total Gols 2.5,NoVig_Prob_Over25,0.026261583,0.026261585,2
+Total Gols 2.5,Raw_Implied_Prob_Under25,0.025891127,0.025891129,3
+Total Gols 2.5,Odd_Over25,0.009489708,0.009489709,4
+Total Gols 2.5,Raw_Implied_Prob_Over25,0.008762837,0.008762838,5
+Total Gols 2.5,Venue_xG_Total_Roll5,0.008446501,0.008446502,6
+Total Gols 2.5,Under25_OddsMove,0.008014273,0.008014274,7
+Total Gols 2.5,Draw_OddsMove,0.0074170697,0.00741707,8
+Total Gols 2.5,NoVig_Prob_Under25,0.0070478837,0.007047884,9
+Total Gols 2.5,Over25_ImpliedMove,0.006858352,0.0068583526,10
+Total Gols 2.5,Over25_OddsMove,0.0066762655,0.006676266,11
+Total Gols 2.5,Home_SecondHalfGoalsAgainst_Roll5,0.0062137456,0.006213746,12
+Total Gols 2.5,Under25_ImpliedMove,0.0060958513,0.006095852,13
+Total Gols 2.5,Home_SecondHalfGoalsFor_Roll5,0.006002943,0.0060029435,14
+Total Gols 2.5,Away_Away_xGFor_Roll5,0.0057082945,0.005708295,15
+Total Gols 2.5,Expected_Total_Goals_Form_Roll5,0.0056165466,0.005616547,16
+Total Gols 2.5,RedCards_Diff_Roll5,0.005609814,0.0056098145,17
+Total Gols 2.5,Home_Home_xGTotal_Roll5,0.005576435,0.0055764355,18
+Total Gols 2.5,Home_GA_Roll5,0.0055482886,0.005548289,19
+Total Gols 2.5,Home_GF_Roll5,0.005386955,0.0053869556,20
+Total Gols 2.5,Venue_WinRate_Diff_Roll5,0.00538446,0.0053844606,21
+Total Gols 2.5,Home_xGDiff_Roll5,0.005362015,0.0053620157,22
+Total Gols 2.5,Away_PreMatch_PointsPerGame,0.0053190584,0.005319059,23
+Total Gols 2.5,Defense_Diff_Roll5,0.0053086053,0.0053086057,24
+Total Gols 2.5,Home_CornersFor_Roll5,0.0051554837,0.005155484,25
+Total Gols 2.5,Home_xGTotal_Roll5,0.0050880862,0.0050880867,26
+Total Gols 2.5,Home_ShotsOnTargetAgainst_Roll5,0.005074706,0.0050747064,27
+Total Gols 2.5,Away_Away_xGTotal_Roll5,0.0050112503,0.0050112507,28
+Total Gols 2.5,FailedToScore_Diff_Roll5,0.004981963,0.0049819634,29
+Total Gols 2.5,MatchImportance,0.004964395,0.0049643954,30
+Total Gols 2.5,Home_ConversionRate_Roll5,0.004962324,0.0049623246,31
+Total Gols 2.5,Venue_xG_Diff_Roll5,0.0049482244,0.004948225,32
+Total Gols 2.5,Away_FirstHalfTotalGoals_Roll5,0.004947455,0.0049474556,33
+Total Gols 2.5,Referee_RedCards_Roll20,0.0049409447,0.004940945,34
+Total Gols 2.5,Away_WinRate_Roll5,0.0049382993,0.0049383,35
+Total Gols 2.5,Away_YellowCardsFor_Roll5,0.0049218154,0.004921816,36
+Total Gols 2.5,Home_xGAgainst_Roll5,0.0049046176,0.004904618,37
+Total Gols 2.5,LossRate_Diff_Roll5,0.0048908885,0.004890889,38
+Total Gols 2.5,Away_ShotsFor_Roll5,0.004868501,0.0048685013,39
+Total Gols 2.5,Home_DrawRate_Roll5,0.004861897,0.0048618973,40
+Total Gols 2.5,Home_RelegationPressure,0.004851389,0.0048513897,41
+Total Gols 2.5,Away_DefensiveDelta_Roll5,0.004828196,0.0048281965,42
+Total Gols 2.5,Draw_ImpliedMove,0.0048109093,0.0048109097,43
+Total Gols 2.5,Away_Away_Over25_Roll5,0.004807376,0.0048073763,44
+Total Gols 2.5,Home_Home_ShotsOnTargetFor_Roll5,0.004797497,0.0047974973,45
+Total Gols 2.5,Venue_RestDays_Diff,0.0047928165,0.004792817,46
+Total Gols 2.5,Home_Home_TG_Roll5,0.0047810692,0.0047810697,47
+Total Gols 2.5,Home_ShotsOnTargetFor_Roll5,0.0047738114,0.004773812,48
+Total Gols 2.5,SeasonProgress,0.0047680717,0.004768072,49
+Total Gols 2.5,Away_Attack_vs_Home_Defense,0.0047654263,0.0047654267,50
+Total Gols 2.5,Away_ShotAccuracy_Roll5,0.0047609266,0.004760927,51
+Total Gols 2.5,Home_Home_ShotsOnTargetAgainst_Roll5,0.0047308817,0.004730882,52
+Total Gols 2.5,ShotsOnTargetAllowed_Diff_Roll5,0.004726927,0.0047269273,53
+Total Gols 2.5,Home_FirstHalfGoalsAgainst_Roll5,0.004723545,0.0047235456,54
+Total Gols 2.5,PointsPerGame_Diff,0.004719572,0.0047195726,55
+Total Gols 2.5,Home_Home_SecondHalfTotalGoals_Roll5,0.004716706,0.0047167065,56
+Total Gols 2.5,xG_Defensive_Delta_Diff_Roll5,0.0047138236,0.004713824,57
+Total Gols 2.5,Home_Home_WinRate_Roll5,0.004703892,0.0047038924,58
+Total Gols 2.5,Venue_ShotsOnTarget_Total_Roll5,0.004694299,0.0046942993,59
+Total Gols 2.5,Away_ShotsOnTargetFor_Roll5,0.0046892543,0.004689255,60
+Total Gols 2.5,Away_Away_ShotsOnTargetAgainst_Roll5,0.004688372,0.0046883724,61
+Total Gols 2.5,Away_ShotsAgainst_Roll5,0.0046803704,0.004680371,62
+Total Gols 2.5,Away_Away_TG_Roll5,0.0046555274,0.004655528,63
+Total Gols 2.5,Home_FoulsFor_Roll5,0.00465214,0.0046521407,64
+Total Gols 2.5,Over25_Rate_Diff_Roll5,0.004622588,0.0046225884,65
+Total Gols 2.5,Home_Home_xGAgainst_Roll5,0.0046210685,0.004621069,66
+Total Gols 2.5,Home_Home_ShotsFor_Roll5,0.0046113255,0.004611326,67
+Total Gols 2.5,xG_Expected_Total_Match_Roll5,0.0046043308,0.004604331,68
+Total Gols 2.5,Away_Away_RestDays,0.004601293,0.0046012932,69
+Total Gols 2.5,Away_GoalsAllowedPerShot_Roll5,0.0045988057,0.004598806,70
+Total Gols 2.5,Home_FailedToScore_Roll5,0.004587,0.0045870002,71
+Total Gols 2.5,Away_Away_ShotsAgainst_Roll5,0.0045852433,0.0045852438,72
+Total Gols 2.5,xG_Total_Roll5,0.00456882,0.0045688204,73
+Total Gols 2.5,ShotsOnTarget_Diff_Roll5,0.004560331,0.0045603313,74
+Total Gols 2.5,Away_MatchImportance,0.0045481194,0.00454812,75
+Total Gols 2.5,Venue_ShotPressure_Diff_Roll5,0.004545087,0.0045450875,76
+Total Gols 2.5,CleanSheet_Diff_Roll5,0.0045395684,0.004539569,77
+Total Gols 2.5,Away_GoalDiff_Roll5,0.004529106,0.0045291064,78
+Total Gols 2.5,Away_PreMatch_Rank,0.0045256843,0.0045256848,79
+Total Gols 2.5,Away_Away_GA_Roll5,0.0045153145,0.004515315,80
+Total Gols 2.5,Discipline_Diff_Roll5,0.0045083435,0.004508344,81
+Total Gols 2.5,Home_Home_GF_Roll5,0.00450787,0.0045078704,82
+Total Gols 2.5,Home_Home_xGFor_Roll5,0.0045032897,0.00450329,83
+Total Gols 2.5,Away_RelegationPressure,0.004492534,0.0044925343,84
+Total Gols 2.5,Away_xGFor_Roll5,0.004491785,0.0044917855,85
+Total Gols 2.5,xG_Finishing_Diff_Roll5,0.004476182,0.0044761826,86
+Total Gols 2.5,Away_Away_ShotsFor_Roll5,0.0044741305,0.004474131,87
+Total Gols 2.5,Away_xGAgainst_Roll5,0.0044735265,0.004473527,88
+Total Gols 2.5,Points_Diff_Roll5,0.0044728187,0.004472819,89
+Total Gols 2.5,Home_Home_GA_Roll5,0.004462219,0.0044622193,90
+Total Gols 2.5,Home_YellowCardsFor_Roll5,0.0044568493,0.00445685,91
+Total Gols 2.5,Home_YellowCardsAgainst_Roll5,0.0044559687,0.004455969,92
+Total Gols 2.5,Home_SecondHalfTotalGoals_Roll5,0.0044355295,0.00443553,93
+Total Gols 2.5,ConversionRate_Diff_Roll5,0.0044350694,0.00443507,94
+Total Gols 2.5,Away_xGTotal_Roll5,0.0044230875,0.004423088,95
+Total Gols 2.5,Away_Away_CornersFor_Roll5,0.004416874,0.0044168746,96
+Total Gols 2.5,TopClash,0.004407566,0.0044075665,97
+Total Gols 2.5,GoalDiff_Diff_Roll5,0.0044064363,0.004406437,98
+Total Gols 2.5,Home_Home_CornersFor_Roll5,0.004399628,0.0043996284,99
+Total Gols 2.5,Home_TitlePressure,0.0043890863,0.0043890867,100
+Total Gols 2.5,xG_Defense_Diff_Roll5,0.004386499,0.0043864995,101
+Total Gols 2.5,ShotAccuracy_Diff_Roll5,0.0043776995,0.0043777,102
+Total Gols 2.5,Referee_TotalGoals_Roll20,0.004376442,0.0043764426,103
+Total Gols 2.5,Home_PreMatch_Rank,0.0043655676,0.004365568,104
+Total Gols 2.5,Away_SecondHalfGoalsFor_Roll5,0.0043516923,0.0043516927,105
+Total Gols 2.5,Home_DefensiveDelta_Roll5,0.0043508774,0.004350878,106
+Total Gols 2.5,Referee_TotalCards_Roll20,0.0043483493,0.0043483498,107
+Total Gols 2.5,Home_ImpliedMove,0.0043373294,0.00433733,108
+Total Gols 2.5,Away_RestDays,0.0043283766,0.004328377,109
+Total Gols 2.5,Away_Away_CornersAgainst_Roll5,0.004320147,0.0043201474,110
+Total Gols 2.5,Away_Away_SecondHalfTotalGoals_Roll5,0.0042964895,0.00429649,111
+Total Gols 2.5,Away_SOTAllowedRate_Roll5,0.0042953077,0.004295308,112
+Total Gols 2.5,Away_FoulsAgainst_Roll5,0.0042856443,0.0042856447,113
+Total Gols 2.5,Away_ShotsOnTargetAgainst_Roll5,0.004284752,0.0042847525,114
+Total Gols 2.5,Importance_Diff,0.0042753248,0.004275325,115
+Total Gols 2.5,Away_LossRate_Roll5,0.004273936,0.0042739366,116
+Total Gols 2.5,Venue_Total_Goals_Form_Roll5,0.004271067,0.0042710677,117
+Total Gols 2.5,Home_Home_Over25_Roll5,0.0042631775,0.004263178,118
+Total Gols 2.5,Corners_Total_Roll5,0.0042566354,0.004256636,119
+Total Gols 2.5,Home_RedCardsAgainst_Roll5,0.004255586,0.0042555863,120
+Total Gols 2.5,ShotPressure_Diff_Roll5,0.004248816,0.0042488165,121
+Total Gols 2.5,Home_MatchImportance,0.00424851,0.0042485106,122
+Total Gols 2.5,Venue_Defense_Diff_Roll5,0.004245284,0.0042452845,123
+Total Gols 2.5,Home_FoulsAgainst_Roll5,0.0042433357,0.004243336,124
+Total Gols 2.5,Away_Away_ShotsOnTargetFor_Roll5,0.0042328974,0.004232898,125
+Total Gols 2.5,Away_CornersAgainst_Roll5,0.004224059,0.0042240596,126
+Total Gols 2.5,Away_YellowCardsAgainst_Roll5,0.004193137,0.0041931374,127
+Total Gols 2.5,Shots_Diff_Roll5,0.004190073,0.0041900733,128
+Total Gols 2.5,Home_PreMatch_PointsPerGame,0.004186834,0.0041868347,129
+Total Gols 2.5,Home_FirstHalfGoalsFor_Roll5,0.0041845776,0.004184578,130
+Total Gols 2.5,xG_Attack_Diff_Roll5,0.0041795694,0.00417957,131
+Total Gols 2.5,Home_ShotAccuracy_Roll5,0.0041693132,0.0041693137,132
+Total Gols 2.5,Away_Away_Points_Roll5,0.004163801,0.0041638017,133
+Total Gols 2.5,Attack_Diff_Roll5,0.004162615,0.0041626156,134
+Total Gols 2.5,Home_Home_GoalDiff_Roll5,0.0041598934,0.004159894,135
+Total Gols 2.5,xG_Diff_Roll5,0.0041596033,0.0041596037,136
+Total Gols 2.5,Home_Over25_Roll5,0.004153065,0.0041530654,137
+Total Gols 2.5,Corners_Diff_Roll5,0.0041274177,0.004127418,138
+Total Gols 2.5,Away_Over25_Roll5,0.004125056,0.0041250563,139
+Total Gols 2.5,Away_Away_FirstHalfTotalGoals_Roll5,0.004096198,0.0040961984,140
+Total Gols 2.5,Venue_Attack_Diff_Roll5,0.0040794914,0.004079492,141
+Total Gols 2.5,Away_OddsMove,0.004079273,0.0040792734,142
+Total Gols 2.5,Away_Elo_Pre,0.0040785084,0.004078509,143
+Total Gols 2.5,Away_FailedToScore_Roll5,0.004064976,0.0040649762,144
+Total Gols 2.5,Away_GA_Roll5,0.004050497,0.0040504974,145
+Total Gols 2.5,Home_GoalsAllowedPerShot_Roll5,0.004043499,0.0040434995,146
+Total Gols 2.5,Elo_Diff,0.0040332964,0.004033297,147
+Total Gols 2.5,Home_FinishingDelta_Roll5,0.004031796,0.0040317965,148
+Total Gols 2.5,Shots_Total_Roll5,0.0040265857,0.004026586,149
+Total Gols 2.5,Total_Defense_Roll5,0.0040222798,0.00402228,150
+Total Gols 2.5,Referee_Fouls_Roll20,0.0040134043,0.0040134047,151
+Total Gols 2.5,Away_FoulsFor_Roll5,0.0040072273,0.0040072277,152
+Total Gols 2.5,ShotsAllowed_Diff_Roll5,0.0039754286,0.003975429,153
+Total Gols 2.5,Home_Home_RestDays,0.0039743423,0.0039743427,154
+Total Gols 2.5,Home_SOTAllowedRate_Roll5,0.003971308,0.0039713085,155
+Total Gols 2.5,Home_CornersAgainst_Roll5,0.0039625876,0.003962588,156
+Total Gols 2.5,Overround_OverUnder25,0.003953687,0.0039536874,157
+Total Gols 2.5,Venue_Points_Diff_Roll5,0.003952252,0.0039522527,158
+Total Gols 2.5,Away_SecondHalfTotalGoals_Roll5,0.003940978,0.0039409786,159
+Total Gols 2.5,Home_OddsMove,0.003940575,0.0039405753,160
+Total Gols 2.5,Away_RedCardsAgainst_Roll5,0.0039208406,0.003920841,161
+Total Gols 2.5,FirstHalfGoals_Total_Roll5,0.003911374,0.0039113746,162
+Total Gols 2.5,Away_FirstHalfGoalsAgainst_Roll5,0.003905179,0.0039051792,163
+Total Gols 2.5,Venue_Over25_Rate_Diff_Roll5,0.0039015866,0.0039015869,164
+Total Gols 2.5,Home_Home_xGDiff_Roll5,0.0038996288,0.003899629,165
+Total Gols 2.5,Away_Away_GoalDiff_Roll5,0.0038903395,0.0038903398,166
+Total Gols 2.5,Home_Home_ShotsAgainst_Roll5,0.0038822612,0.0038822615,167
+Total Gols 2.5,Away_Points_Roll5,0.0038728267,0.003872827,168
+Total Gols 2.5,Venue_GoalDiff_Diff_Roll5,0.0038653978,0.003865398,169
+Total Gols 2.5,Home_Home_CornersAgainst_Roll5,0.003858966,0.0038589663,170
+Total Gols 2.5,Home_Elo_Pre,0.0038549625,0.0038549628,171
+Total Gols 2.5,Away_CornersFor_Roll5,0.0038285635,0.0038285637,172
+Total Gols 2.5,ShotsOnTarget_Total_Roll5,0.0038140928,0.003814093,173
+Total Gols 2.5,Away_xGDiff_Roll5,0.003811657,0.0038116572,174
+Total Gols 2.5,Away_Away_GF_Roll5,0.0037805717,0.003780572,175
+Total Gols 2.5,Away_ConversionRate_Roll5,0.0037728408,0.003772841,176
+Total Gols 2.5,Away_RedCardsFor_Roll5,0.003767019,0.0037670191,177
+Total Gols 2.5,Home_Home_Points_Roll5,0.0037662166,0.0037662168,178
+Total Gols 2.5,Home_LossRate_Roll5,0.0037601467,0.003760147,179
+Total Gols 2.5,Home_ShotsAgainst_Roll5,0.003728589,0.0037285893,180
+Total Gols 2.5,Total_Goals_Form_Roll5,0.0037136746,0.0037136748,181
+Total Gols 2.5,Home_Points_Roll5,0.0036959136,0.0036959138,182
+Total Gols 2.5,RestDays_Diff,0.0036955264,0.0036955266,183
+Total Gols 2.5,Home_ShotsFor_Roll5,0.0036607897,0.00366079,184
+Total Gols 2.5,Rank_Diff,0.0036523745,0.0036523747,185
+Total Gols 2.5,Home_xGFor_Roll5,0.0036388137,0.003638814,186
+Total Gols 2.5,Home_Attack_vs_Away_Defense,0.0036282989,0.003628299,187
+Total Gols 2.5,Away_ImpliedMove,0.003607475,0.0036074752,188
+Total Gols 2.5,Home_FirstHalfTotalGoals_Roll5,0.003554538,0.0035545381,189
+Total Gols 2.5,Total_Attack_Roll5,0.0035543912,0.0035543914,190
+Total Gols 2.5,Away_CleanSheet_Roll5,0.003507776,0.0035077762,191
+Total Gols 2.5,Home_Home_FirstHalfTotalGoals_Roll5,0.0035007547,0.003500755,192
+Total Gols 2.5,SecondHalfGoals_Total_Roll5,0.0034829483,0.0034829485,193
+Total Gols 2.5,Away_FinishingDelta_Roll5,0.0034479112,0.0034479115,194
+Total Gols 2.5,WinRate_Diff_Roll5,0.0034469732,0.0034469734,195
+Total Gols 2.5,Home_TG_Roll5,0.0034303837,0.003430384,196
+Total Gols 2.5,Away_Away_xGDiff_Roll5,0.0034043489,0.003404349,197
+Total Gols 2.5,Away_Away_WinRate_Roll5,0.0033841485,0.0033841487,198
+Total Gols 2.5,Away_DrawRate_Roll5,0.0033547117,0.003354712,199
+Total Gols 2.5,Home_WinRate_Roll5,0.0032847284,0.0032847286,200
+Total Gols 2.5,Away_SecondHalfGoalsAgainst_Roll5,0.0032796192,0.0032796194,201
+Total Gols 2.5,Home_GoalDiff_Roll5,0.0032747833,0.0032747835,202
+Total Gols 2.5,Home_RestDays,0.003158726,0.0031587263,203
+Total Gols 2.5,Away_TG_Roll5,0.003065116,0.0030651162,204
+Total Gols 2.5,Venue_Corners_Total_Roll5,0.003028669,0.0030286692,205
+Total Gols 2.5,Away_Away_xGAgainst_Roll5,0.0025617508,0.002561751,206
+Total Gols 2.5,Away_GF_Roll5,0.0022299404,0.0022299406,207
+Total Gols 2.5,Home_CleanSheet_Roll5,0.0,0.0,208
+Total Gols 2.5,Away_TitlePressure,0.0,0.0,209
+Total Gols 2.5,Home_LineupDataAvailable,0.0,0.0,210
+Total Gols 2.5,Away_LineupDataAvailable,0.0,0.0,211
+Total Gols 2.5,Home_LineupConfirmed,0.0,0.0,212
+Total Gols 2.5,Away_LineupConfirmed,0.0,0.0,213
+Total Gols 2.5,Home_LineupStrength,0.0,0.0,214
+Total Gols 2.5,Away_LineupStrength,0.0,0.0,215
+Total Gols 2.5,LineupStrength_Diff,0.0,0.0,216
+Total Gols 2.5,Home_MissingStarters,0.0,0.0,217
+Total Gols 2.5,Away_MissingStarters,0.0,0.0,218
+Total Gols 2.5,MissingStarters_Diff,0.0,0.0,219
+Total Gols 2.5,Home_MissingKeyPlayers,0.0,0.0,220
+Total Gols 2.5,Away_MissingKeyPlayers,0.0,0.0,221
+Total Gols 2.5,MissingKeyPlayers_Diff,0.0,0.0,222
+Total Gols 2.5,Home_MatchStatsAvailable_Roll5,0.0,0.0,223
+Total Gols 2.5,Home_RedCardsFor_Roll5,0.0,0.0,224
+Total Gols 2.5,Away_MatchStatsAvailable_Roll5,0.0,0.0,225
+Total Gols 2.5,Away_FirstHalfGoalsFor_Roll5,0.0,0.0,226
+Total Gols 2.5,Referee_DataAvailable_Roll20,0.0,0.0,227
+Total Gols 2.5,Over25_ClosingAvailable,0.0,0.0,228
+Total Gols 2.5,Result_ClosingAvailable,0.0,0.0,229
+Total Gols 2.5,Home_xGAvailable_Roll5,0.0,0.0,230
+Total Gols 2.5,Away_xGAvailable_Roll5,0.0,0.0,231
+Total Gols 2.5,Elo_Home_Adv_Diff,0.0,0.0,232
+Total Gols 2.5,Elo_Expected_Home,0.0,0.0,233
+Total Gols 2.5,Elo_Expected_Away,0.0,0.0,234
+Resultado 1X2 / Vitoria,Raw_Implied_Prob_Away,0.06758884,0.06758884,1
+Resultado 1X2 / Vitoria,Odd_Away,0.062329933,0.062329933,2
+Resultado 1X2 / Vitoria,NoVig_Prob_Away,0.051130988,0.051130988,3
+Resultado 1X2 / Vitoria,NoVig_Prob_Home,0.031550553,0.031550553,4
+Resultado 1X2 / Vitoria,Raw_Implied_Prob_Home,0.020484732,0.020484732,5
+Resultado 1X2 / Vitoria,Odd_Home,0.02005259,0.02005259,6
+Resultado 1X2 / Vitoria,NoVig_Prob_Draw,0.014963943,0.014963943,7
+Resultado 1X2 / Vitoria,Raw_Implied_Prob_Draw,0.011959735,0.011959735,8
+Resultado 1X2 / Vitoria,Odd_Draw,0.009679504,0.009679504,9
+Resultado 1X2 / Vitoria,Away_ImpliedMove,0.0056779115,0.0056779115,10
+Resultado 1X2 / Vitoria,Home_OddsMove,0.0055119917,0.0055119917,11
+Resultado 1X2 / Vitoria,Home_ImpliedMove,0.0047613382,0.0047613382,12
+Resultado 1X2 / Vitoria,Away_OddsMove,0.004655067,0.004655067,13
+Resultado 1X2 / Vitoria,Draw_OddsMove,0.004627516,0.004627516,14
+Resultado 1X2 / Vitoria,Elo_Home_Adv_Diff,0.004436089,0.004436089,15
+Resultado 1X2 / Vitoria,Home_Over25_Roll5,0.0043849507,0.0043849507,16
+Resultado 1X2 / Vitoria,Away_CleanSheet_Roll5,0.0043731984,0.0043731984,17
+Resultado 1X2 / Vitoria,ShotPressure_Diff_Roll5,0.0043526264,0.0043526264,18
+Resultado 1X2 / Vitoria,Elo_Diff,0.004342236,0.004342236,19
+Resultado 1X2 / Vitoria,Venue_ShotPressure_Diff_Roll5,0.004230887,0.004230887,20
+Resultado 1X2 / Vitoria,Draw_ImpliedMove,0.0041415817,0.0041415817,21
+Resultado 1X2 / Vitoria,Away_MatchImportance,0.0040649977,0.0040649977,22
+Resultado 1X2 / Vitoria,xG_Expected_Total_Match_Roll5,0.0040525957,0.0040525957,23
+Resultado 1X2 / Vitoria,Home_Home_xGFor_Roll5,0.004018785,0.004018785,24
+Resultado 1X2 / Vitoria,Home_xGAvailable_Roll5,0.0039042037,0.0039042037,25
+Resultado 1X2 / Vitoria,Away_xGFor_Roll5,0.0038543383,0.0038543383,26
+Resultado 1X2 / Vitoria,Shots_Diff_Roll5,0.0038213576,0.0038213576,27
+Resultado 1X2 / Vitoria,Home_PreMatch_Rank,0.0038137045,0.0038137045,28
+Resultado 1X2 / Vitoria,Venue_GoalDiff_Diff_Roll5,0.003797382,0.003797382,29
+Resultado 1X2 / Vitoria,Home_GoalsAllowedPerShot_Roll5,0.0037891688,0.0037891688,30
+Resultado 1X2 / Vitoria,Venue_ShotsOnTarget_Total_Roll5,0.0037746592,0.0037746592,31
+Resultado 1X2 / Vitoria,Away_xGTotal_Roll5,0.0037616298,0.0037616298,32
+Resultado 1X2 / Vitoria,Away_GA_Roll5,0.0037615856,0.0037615856,33
+Resultado 1X2 / Vitoria,Away_Away_ShotsFor_Roll5,0.0037274829,0.0037274829,34
+Resultado 1X2 / Vitoria,Away_SecondHalfTotalGoals_Roll5,0.003712993,0.003712993,35
+Resultado 1X2 / Vitoria,Corners_Diff_Roll5,0.0037101714,0.0037101714,36
+Resultado 1X2 / Vitoria,Over25_ImpliedMove,0.0037058012,0.0037058012,37
+Resultado 1X2 / Vitoria,Away_ShotsOnTargetAgainst_Roll5,0.0037024906,0.0037024906,38
+Resultado 1X2 / Vitoria,Away_Away_Points_Roll5,0.0036965357,0.0036965357,39
+Resultado 1X2 / Vitoria,ShotsOnTarget_Diff_Roll5,0.0036964163,0.0036964163,40
+Resultado 1X2 / Vitoria,ConversionRate_Diff_Roll5,0.0036920689,0.0036920689,41
+Resultado 1X2 / Vitoria,Away_CornersAgainst_Roll5,0.0036804501,0.0036804501,42
+Resultado 1X2 / Vitoria,Away_SecondHalfGoalsFor_Roll5,0.0036761956,0.0036761956,43
+Resultado 1X2 / Vitoria,Home_Home_xGDiff_Roll5,0.0036697064,0.0036697064,44
+Resultado 1X2 / Vitoria,Home_YellowCardsAgainst_Roll5,0.0036615017,0.0036615017,45
+Resultado 1X2 / Vitoria,Home_RelegationPressure,0.0036592756,0.0036592756,46
+Resultado 1X2 / Vitoria,Home_Home_ShotsFor_Roll5,0.0036552576,0.0036552576,47
+Resultado 1X2 / Vitoria,Home_FailedToScore_Roll5,0.0036536541,0.0036536541,48
+Resultado 1X2 / Vitoria,Away_FinishingDelta_Roll5,0.0036502772,0.0036502772,49
+Resultado 1X2 / Vitoria,LossRate_Diff_Roll5,0.0036472282,0.0036472282,50
+Resultado 1X2 / Vitoria,Points_Diff_Roll5,0.003638597,0.003638597,51
+Resultado 1X2 / Vitoria,TopClash,0.0036341588,0.0036341588,52
+Resultado 1X2 / Vitoria,Home_Home_GA_Roll5,0.0036107216,0.0036107216,53
+Resultado 1X2 / Vitoria,Home_DrawRate_Roll5,0.0036105465,0.0036105465,54
+Resultado 1X2 / Vitoria,Away_Away_xGTotal_Roll5,0.0036094538,0.0036094538,55
+Resultado 1X2 / Vitoria,Away_Away_WinRate_Roll5,0.0035947964,0.0035947964,56
+Resultado 1X2 / Vitoria,ShotsOnTarget_Total_Roll5,0.0035896723,0.0035896723,57
+Resultado 1X2 / Vitoria,Home_SecondHalfGoalsFor_Roll5,0.0035873926,0.0035873926,58
+Resultado 1X2 / Vitoria,PointsPerGame_Diff,0.0035855244,0.0035855244,59
+Resultado 1X2 / Vitoria,Away_xGAgainst_Roll5,0.0035831055,0.0035831055,60
+Resultado 1X2 / Vitoria,Away_YellowCardsAgainst_Roll5,0.0035769714,0.0035769714,61
+Resultado 1X2 / Vitoria,ShotAccuracy_Diff_Roll5,0.0035473856,0.0035473856,62
+Resultado 1X2 / Vitoria,Away_Away_CornersAgainst_Roll5,0.0035462393,0.0035462393,63
+Resultado 1X2 / Vitoria,Away_ShotsFor_Roll5,0.003546053,0.003546053,64
+Resultado 1X2 / Vitoria,Away_Away_GoalDiff_Roll5,0.003540804,0.003540804,65
+Resultado 1X2 / Vitoria,Venue_WinRate_Diff_Roll5,0.003531188,0.003531188,66
+Resultado 1X2 / Vitoria,Away_SecondHalfGoalsAgainst_Roll5,0.0035301656,0.0035301656,67
+Resultado 1X2 / Vitoria,Home_TitlePressure,0.0035206815,0.0035206815,68
+Resultado 1X2 / Vitoria,Referee_Fouls_Roll20,0.0035163455,0.0035163455,69
+Resultado 1X2 / Vitoria,Venue_Corners_Total_Roll5,0.003512914,0.003512914,70
+Resultado 1X2 / Vitoria,Rank_Diff,0.0035092551,0.0035092551,71
+Resultado 1X2 / Vitoria,Under25_ImpliedMove,0.0035055317,0.0035055317,72
+Resultado 1X2 / Vitoria,FirstHalfGoals_Total_Roll5,0.0035048516,0.0035048516,73
+Resultado 1X2 / Vitoria,Away_Away_RestDays,0.0034984627,0.0034984627,74
+Resultado 1X2 / Vitoria,FailedToScore_Diff_Roll5,0.0034979668,0.0034979668,75
+Resultado 1X2 / Vitoria,Home_GA_Roll5,0.0034786053,0.0034786053,76
+Resultado 1X2 / Vitoria,Home_xGDiff_Roll5,0.0034752705,0.0034752705,77
+Resultado 1X2 / Vitoria,Total_Attack_Roll5,0.0034705978,0.0034705978,78
+Resultado 1X2 / Vitoria,Away_ShotsAgainst_Roll5,0.0034622496,0.0034622496,79
+Resultado 1X2 / Vitoria,Home_WinRate_Roll5,0.0034599244,0.0034599244,80
+Resultado 1X2 / Vitoria,xG_Defense_Diff_Roll5,0.0034591174,0.0034591174,81
+Resultado 1X2 / Vitoria,Home_Home_Points_Roll5,0.0034458512,0.0034458512,82
+Resultado 1X2 / Vitoria,Away_ConversionRate_Roll5,0.003443736,0.003443736,83
+Resultado 1X2 / Vitoria,SecondHalfGoals_Total_Roll5,0.003443014,0.003443014,84
+Resultado 1X2 / Vitoria,Away_PreMatch_PointsPerGame,0.00342749,0.00342749,85
+Resultado 1X2 / Vitoria,Away_WinRate_Roll5,0.0034221685,0.0034221685,86
+Resultado 1X2 / Vitoria,Total_Goals_Form_Roll5,0.0034132416,0.0034132416,87
+Resultado 1X2 / Vitoria,Referee_TotalGoals_Roll20,0.0034130872,0.0034130872,88
+Resultado 1X2 / Vitoria,Away_Away_ShotsOnTargetFor_Roll5,0.0034119973,0.0034119973,89
+Resultado 1X2 / Vitoria,Under25_OddsMove,0.0034112148,0.0034112148,90
+Resultado 1X2 / Vitoria,Referee_TotalCards_Roll20,0.0034085682,0.0034085682,91
+Resultado 1X2 / Vitoria,Home_GoalDiff_Roll5,0.0034079412,0.0034079412,92
+Resultado 1X2 / Vitoria,Corners_Total_Roll5,0.003407072,0.003407072,93
+Resultado 1X2 / Vitoria,Home_Home_CornersFor_Roll5,0.003405742,0.003405742,94
+Resultado 1X2 / Vitoria,ShotsAllowed_Diff_Roll5,0.003392166,0.003392166,95
+Resultado 1X2 / Vitoria,Away_Away_xGFor_Roll5,0.0033921013,0.0033921013,96
+Resultado 1X2 / Vitoria,Away_ShotAccuracy_Roll5,0.0033918277,0.0033918277,97
+Resultado 1X2 / Vitoria,Home_xGFor_Roll5,0.003387927,0.003387927,98
+Resultado 1X2 / Vitoria,Home_FoulsAgainst_Roll5,0.0033868242,0.0033868242,99
+Resultado 1X2 / Vitoria,Home_Home_CornersAgainst_Roll5,0.003377409,0.003377409,100
+Resultado 1X2 / Vitoria,Home_xGTotal_Roll5,0.003376577,0.003376577,101
+Resultado 1X2 / Vitoria,Home_MatchImportance,0.0033716015,0.0033716015,102
+Resultado 1X2 / Vitoria,Home_ConversionRate_Roll5,0.0033713249,0.0033713249,103
+Resultado 1X2 / Vitoria,Over25_OddsMove,0.0033678142,0.0033678142,104
+Resultado 1X2 / Vitoria,Away_xGDiff_Roll5,0.003364366,0.003364366,105
+Resultado 1X2 / Vitoria,Expected_Total_Goals_Form_Roll5,0.0033581813,0.0033581813,106
+Resultado 1X2 / Vitoria,Away_FoulsAgainst_Roll5,0.0033553499,0.0033553499,107
+Resultado 1X2 / Vitoria,Away_YellowCardsFor_Roll5,0.0033549871,0.0033549871,108
+Resultado 1X2 / Vitoria,Away_PreMatch_Rank,0.0033547152,0.0033547152,109
+Resultado 1X2 / Vitoria,Home_Home_xGTotal_Roll5,0.0033516136,0.0033516136,110
+Resultado 1X2 / Vitoria,Home_Attack_vs_Away_Defense,0.0033478579,0.0033478579,111
+Resultado 1X2 / Vitoria,Home_Home_ShotsOnTargetFor_Roll5,0.0033312014,0.0033312014,112
+Resultado 1X2 / Vitoria,Home_Elo_Pre,0.0033298999,0.0033298999,113
+Resultado 1X2 / Vitoria,Home_LossRate_Roll5,0.0033267692,0.0033267692,114
+Resultado 1X2 / Vitoria,Away_RedCardsFor_Roll5,0.0033251038,0.0033251038,115
+Resultado 1X2 / Vitoria,Away_TG_Roll5,0.0033206285,0.0033206285,116
+Resultado 1X2 / Vitoria,WinRate_Diff_Roll5,0.0033198944,0.0033198944,117
+Resultado 1X2 / Vitoria,RestDays_Diff,0.0033197459,0.0033197459,118
+Resultado 1X2 / Vitoria,Away_DefensiveDelta_Roll5,0.0033178092,0.0033178092,119
+Resultado 1X2 / Vitoria,Home_FirstHalfGoalsAgainst_Roll5,0.0033157584,0.0033157584,120
+Resultado 1X2 / Vitoria,Away_Away_CornersFor_Roll5,0.0033124432,0.0033124432,121
+Resultado 1X2 / Vitoria,Defense_Diff_Roll5,0.003310743,0.003310743,122
+Resultado 1X2 / Vitoria,Home_DefensiveDelta_Roll5,0.0033092552,0.0033092552,123
+Resultado 1X2 / Vitoria,xG_Finishing_Diff_Roll5,0.0033069784,0.0033069784,124
+Resultado 1X2 / Vitoria,Home_Home_RestDays,0.0033038016,0.0033038016,125
+Resultado 1X2 / Vitoria,Home_Home_ShotsOnTargetAgainst_Roll5,0.0033006042,0.0033006042,126
+Resultado 1X2 / Vitoria,Away_GoalsAllowedPerShot_Roll5,0.0032970735,0.0032970735,127
+Resultado 1X2 / Vitoria,Home_xGAgainst_Roll5,0.0032946516,0.0032946516,128
+Resultado 1X2 / Vitoria,Away_LossRate_Roll5,0.0032944558,0.0032944558,129
+Resultado 1X2 / Vitoria,Away_GoalDiff_Roll5,0.0032921934,0.0032921934,130
+Resultado 1X2 / Vitoria,Away_Away_ShotsAgainst_Roll5,0.0032830115,0.0032830115,131
+Resultado 1X2 / Vitoria,ShotsOnTargetAllowed_Diff_Roll5,0.0032797747,0.0032797747,132
+Resultado 1X2 / Vitoria,Home_FinishingDelta_Roll5,0.0032788888,0.0032788888,133
+Resultado 1X2 / Vitoria,GoalDiff_Diff_Roll5,0.0032740138,0.0032740138,134
+Resultado 1X2 / Vitoria,Away_Elo_Pre,0.0032714303,0.0032714303,135
+Resultado 1X2 / Vitoria,Overround_1X2,0.0032692421,0.0032692421,136
+Resultado 1X2 / Vitoria,xG_Total_Roll5,0.0032681196,0.0032681196,137
+Resultado 1X2 / Vitoria,Venue_xG_Total_Roll5,0.0032617447,0.0032617447,138
+Resultado 1X2 / Vitoria,Home_Home_GF_Roll5,0.0032508702,0.0032508702,139
+Resultado 1X2 / Vitoria,Importance_Diff,0.003241102,0.003241102,140
+Resultado 1X2 / Vitoria,Home_ShotsAgainst_Roll5,0.0032396337,0.0032396337,141
+Resultado 1X2 / Vitoria,Away_FoulsFor_Roll5,0.003228376,0.003228376,142
+Resultado 1X2 / Vitoria,Away_Away_GF_Roll5,0.0032271848,0.0032271848,143
+Resultado 1X2 / Vitoria,Attack_Diff_Roll5,0.0032267927,0.0032267927,144
+Resultado 1X2 / Vitoria,Home_FoulsFor_Roll5,0.0032261824,0.0032261824,145
+Resultado 1X2 / Vitoria,Away_Attack_vs_Home_Defense,0.0032256844,0.0032256844,146
+Resultado 1X2 / Vitoria,Venue_xG_Diff_Roll5,0.0032251738,0.0032251738,147
+Resultado 1X2 / Vitoria,Home_Home_TG_Roll5,0.0032204215,0.0032204215,148
+Resultado 1X2 / Vitoria,Home_CornersAgainst_Roll5,0.0032170399,0.0032170399,149
+Resultado 1X2 / Vitoria,Away_Away_xGAgainst_Roll5,0.0032151297,0.0032151297,150
+Resultado 1X2 / Vitoria,Referee_RedCards_Roll20,0.0032140627,0.0032140627,151
+Resultado 1X2 / Vitoria,Home_Home_FirstHalfTotalGoals_Roll5,0.0032139886,0.0032139886,152
+Resultado 1X2 / Vitoria,Home_CleanSheet_Roll5,0.00320891,0.00320891,153
+Resultado 1X2 / Vitoria,Home_ShotsOnTargetAgainst_Roll5,0.0031996942,0.0031996942,154
+Resultado 1X2 / Vitoria,Home_Home_xGAgainst_Roll5,0.0031957852,0.0031957852,155
+Resultado 1X2 / Vitoria,Home_TG_Roll5,0.0031951473,0.0031951473,156
+Resultado 1X2 / Vitoria,Away_Points_Roll5,0.0031950173,0.0031950173,157
+Resultado 1X2 / Vitoria,xG_Defensive_Delta_Diff_Roll5,0.0031913861,0.0031913861,158
+Resultado 1X2 / Vitoria,Over25_Rate_Diff_Roll5,0.0031906392,0.0031906392,159
+Resultado 1X2 / Vitoria,SeasonProgress,0.0031850804,0.0031850804,160
+Resultado 1X2 / Vitoria,Away_Away_FirstHalfTotalGoals_Roll5,0.003183449,0.003183449,161
+Resultado 1X2 / Vitoria,Home_GF_Roll5,0.0031731082,0.0031731082,162
+Resultado 1X2 / Vitoria,Venue_Points_Diff_Roll5,0.0031729285,0.0031729285,163
+Resultado 1X2 / Vitoria,Discipline_Diff_Roll5,0.003168724,0.003168724,164
+Resultado 1X2 / Vitoria,Home_RedCardsAgainst_Roll5,0.0031648783,0.0031648783,165
+Resultado 1X2 / Vitoria,Away_Away_xGDiff_Roll5,0.0031643682,0.0031643682,166
+Resultado 1X2 / Vitoria,Venue_RestDays_Diff,0.003162921,0.003162921,167
+Resultado 1X2 / Vitoria,Away_Away_Over25_Roll5,0.0031606273,0.0031606273,168
+Resultado 1X2 / Vitoria,Away_RedCardsAgainst_Roll5,0.0031595265,0.0031595265,169
+Resultado 1X2 / Vitoria,Elo_Expected_Home,0.00314634,0.00314634,170
+Resultado 1X2 / Vitoria,Away_CornersFor_Roll5,0.0031458533,0.0031458533,171
+Resultado 1X2 / Vitoria,Away_FirstHalfTotalGoals_Roll5,0.003131161,0.003131161,172
+Resultado 1X2 / Vitoria,xG_Diff_Roll5,0.0031286331,0.0031286331,173
+Resultado 1X2 / Vitoria,Home_ShotsFor_Roll5,0.0031208543,0.0031208543,174
+Resultado 1X2 / Vitoria,Home_CornersFor_Roll5,0.0031204056,0.0031204056,175
+Resultado 1X2 / Vitoria,Venue_Total_Goals_Form_Roll5,0.003119997,0.003119997,176
+Resultado 1X2 / Vitoria,Home_SecondHalfTotalGoals_Roll5,0.00311862,0.00311862,177
+Resultado 1X2 / Vitoria,Shots_Total_Roll5,0.0031177565,0.0031177565,178
+Resultado 1X2 / Vitoria,Home_Home_GoalDiff_Roll5,0.0031162752,0.0031162752,179
+Resultado 1X2 / Vitoria,Home_YellowCardsFor_Roll5,0.003113859,0.003113859,180
+Resultado 1X2 / Vitoria,Away_ShotsOnTargetFor_Roll5,0.0030965859,0.0030965859,181
+Resultado 1X2 / Vitoria,Away_SOTAllowedRate_Roll5,0.0030875667,0.0030875667,182
+Resultado 1X2 / Vitoria,Home_PreMatch_PointsPerGame,0.00308746,0.00308746,183
+Resultado 1X2 / Vitoria,Venue_Attack_Diff_Roll5,0.0030847606,0.0030847606,184
+Resultado 1X2 / Vitoria,Home_ShotsOnTargetFor_Roll5,0.0030747824,0.0030747824,185
+Resultado 1X2 / Vitoria,RedCards_Diff_Roll5,0.0030732309,0.0030732309,186
+Resultado 1X2 / Vitoria,Home_Points_Roll5,0.0030724201,0.0030724201,187
+Resultado 1X2 / Vitoria,Home_Home_ShotsAgainst_Roll5,0.0030696867,0.0030696867,188
+Resultado 1X2 / Vitoria,Away_RelegationPressure,0.0030695868,0.0030695868,189
+Resultado 1X2 / Vitoria,Home_SecondHalfGoalsAgainst_Roll5,0.0030631954,0.0030631954,190
+Resultado 1X2 / Vitoria,Away_FirstHalfGoalsAgainst_Roll5,0.0030613907,0.0030613907,191
+Resultado 1X2 / Vitoria,Away_FailedToScore_Roll5,0.0030590578,0.0030590578,192
+Resultado 1X2 / Vitoria,Away_RestDays,0.0030514256,0.0030514256,193
+Resultado 1X2 / Vitoria,Away_FirstHalfGoalsFor_Roll5,0.003042067,0.003042067,194
+Resultado 1X2 / Vitoria,Home_FirstHalfGoalsFor_Roll5,0.0030359786,0.0030359786,195
+Resultado 1X2 / Vitoria,Away_Away_SecondHalfTotalGoals_Roll5,0.0030214104,0.0030214104,196
+Resultado 1X2 / Vitoria,Home_SOTAllowedRate_Roll5,0.0030131254,0.0030131254,197
+Resultado 1X2 / Vitoria,Away_Away_GA_Roll5,0.0030041002,0.0030041002,198
+Resultado 1X2 / Vitoria,Home_ShotAccuracy_Roll5,0.002985621,0.002985621,199
+Resultado 1X2 / Vitoria,xG_Attack_Diff_Roll5,0.0029606735,0.0029606735,200
+Resultado 1X2 / Vitoria,MatchImportance,0.0029579962,0.0029579962,201
+Resultado 1X2 / Vitoria,Away_Over25_Roll5,0.0029410725,0.0029410725,202
+Resultado 1X2 / Vitoria,Venue_Over25_Rate_Diff_Roll5,0.0029407004,0.0029407004,203
+Resultado 1X2 / Vitoria,Elo_Expected_Away,0.0029398357,0.0029398357,204
+Resultado 1X2 / Vitoria,Away_DrawRate_Roll5,0.0029392606,0.0029392606,205
+Resultado 1X2 / Vitoria,Away_Away_ShotsOnTargetAgainst_Roll5,0.0029356754,0.0029356754,206
+Resultado 1X2 / Vitoria,Total_Defense_Roll5,0.0029262463,0.0029262463,207
+Resultado 1X2 / Vitoria,Away_TitlePressure,0.0029127728,0.0029127728,208
+Resultado 1X2 / Vitoria,Home_Home_WinRate_Roll5,0.0028768817,0.0028768817,209
+Resultado 1X2 / Vitoria,Away_Away_TG_Roll5,0.002820047,0.002820047,210
+Resultado 1X2 / Vitoria,Home_RedCardsFor_Roll5,0.0027819187,0.0027819187,211
+Resultado 1X2 / Vitoria,Home_FirstHalfTotalGoals_Roll5,0.002774566,0.002774566,212
+Resultado 1X2 / Vitoria,CleanSheet_Diff_Roll5,0.0027197017,0.0027197017,213
+Resultado 1X2 / Vitoria,Venue_Defense_Diff_Roll5,0.002678249,0.002678249,214
+Resultado 1X2 / Vitoria,Away_GF_Roll5,0.002666682,0.002666682,215
+Resultado 1X2 / Vitoria,Home_RestDays,0.0026412264,0.0026412264,216
+Resultado 1X2 / Vitoria,Home_Home_SecondHalfTotalGoals_Roll5,0.002589491,0.002589491,217
+Resultado 1X2 / Vitoria,Home_Home_Over25_Roll5,0.0024582837,0.0024582837,218
+Resultado 1X2 / Vitoria,Home_LineupDataAvailable,0.0,0.0,219
+Resultado 1X2 / Vitoria,Away_LineupDataAvailable,0.0,0.0,220
+Resultado 1X2 / Vitoria,Home_LineupConfirmed,0.0,0.0,221
+Resultado 1X2 / Vitoria,Away_LineupConfirmed,0.0,0.0,222
+Resultado 1X2 / Vitoria,Home_LineupStrength,0.0,0.0,223
+Resultado 1X2 / Vitoria,Away_LineupStrength,0.0,0.0,224
+Resultado 1X2 / Vitoria,LineupStrength_Diff,0.0,0.0,225
+Resultado 1X2 / Vitoria,Home_MissingStarters,0.0,0.0,226
+Resultado 1X2 / Vitoria,Away_MissingStarters,0.0,0.0,227
+Resultado 1X2 / Vitoria,MissingStarters_Diff,0.0,0.0,228
+Resultado 1X2 / Vitoria,Home_MissingKeyPlayers,0.0,0.0,229
+Resultado 1X2 / Vitoria,Away_MissingKeyPlayers,0.0,0.0,230
+Resultado 1X2 / Vitoria,MissingKeyPlayers_Diff,0.0,0.0,231
+Resultado 1X2 / Vitoria,Home_MatchStatsAvailable_Roll5,0.0,0.0,232
+Resultado 1X2 / Vitoria,Away_MatchStatsAvailable_Roll5,0.0,0.0,233
+Resultado 1X2 / Vitoria,Referee_DataAvailable_Roll20,0.0,0.0,234
+Resultado 1X2 / Vitoria,Over25_ClosingAvailable,0.0,0.0,235
+Resultado 1X2 / Vitoria,Result_ClosingAvailable,0.0,0.0,236
+Resultado 1X2 / Vitoria,Away_xGAvailable_Roll5,0.0,0.0,237

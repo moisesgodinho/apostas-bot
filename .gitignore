@@ -1,0 +1,36 @@
+# Python bytecode/cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local env/secrets
+.env
+.env.*
+
+# Test/lint/cache artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Streamlit/local logs
+*.log
+streamlit*.log
+
+# Downloaded API caches that can be rebuilt
+raw_data/understat_xg/
+
+# Temporary experiment outputs
+outputs_blend_test/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

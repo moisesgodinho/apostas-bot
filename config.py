@@ -48,6 +48,7 @@ ODD_AWAY_COL = "Odd_Away"
 RAW_IMPLIED_OVER_COL = "Raw_Implied_Prob_Over25"
 RAW_IMPLIED_UNDER_COL = "Raw_Implied_Prob_Under25"
 NO_VIG_OVER_COL = "NoVig_Prob_Over25"
+NO_VIG_UNDER_COL = "NoVig_Prob_Under25"
 OVERROUND_COL = "Overround_OverUnder25"
 RAW_IMPLIED_HOME_COL = "Raw_Implied_Prob_Home"
 RAW_IMPLIED_DRAW_COL = "Raw_Implied_Prob_Draw"
@@ -64,19 +65,47 @@ class PipelineConfig:
 
     leagues: Sequence[str]
     seasons: Sequence[str]
-    markets: Sequence[str] = field(default_factory=lambda: ["over25", "result"])
+    markets: Sequence[str] = field(
+        default_factory=lambda: ["over25", "under25", "result"]
+    )
     raw_dir: Path = Path("raw_data")
     output_dir: Path = Path("outputs")
+    lineup_features_path: Path | None = Path("raw_data/lineup_features.csv")
+    understat_xg_dir: Path = Path("raw_data/understat_xg")
+    use_understat_xg: bool = True
+    force_refresh_understat_xg: bool = False
     rolling_window: int = 5
     train_size: float = 0.80
+    split_strategy: str = "season"
+    validation_seasons: int = 1
+    test_seasons: int = 1
     calibration_size: float = 0.20
     calibration_method: str = "sigmoid"
     walk_forward_splits: int = 5
     stake: float = 10.0
+    kelly_bankroll: float = 1000.0
+    kelly_fraction: float = 0.25
+    max_kelly_fraction: float = 0.03
     edge: float = 0.05
     min_model_prob: float = 0.55
     max_over_odd: float | None = 1.80
+    min_under_prob: float = 0.55
+    max_under_odd: float | None = 1.80
     min_result_prob: float = 0.48
     max_result_odd: float | None = 2.50
     min_win_prob: float = 0.50
     max_win_odd: float | None = 2.50
+    elo_initial: float = 1500.0
+    elo_k_factor: float = 20.0
+    elo_home_advantage: float = 65.0
+    run_model_comparison: bool = True
+    run_filter_optimization: bool = True
+    run_realistic_backtest: bool = True
+    filter_optimization_train_size: float = 0.60
+    min_optimization_bets: int = 30
+    use_optimized_filters_for_upcoming: bool = True
+    min_optimized_eval_roi: float = 0.0
+    min_optimized_eval_bets: int = 10
+    feature_profile: str = "extended"
+    xgb_tuning_trials: int = 0
+    xgb_tuning_validation_size: float = 0.20

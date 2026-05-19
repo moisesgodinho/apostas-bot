@@ -1,55 +1,133 @@
 ﻿FixtureId,MatchDatetime,MatchDatetimeBR,KickoffTimezone,Liga,HomeTeam,AwayTeam,Market,Selection,Bookmaker,Odd
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,Bet365,2.01
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,Bet365,3.5
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,Bet365,3.5
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,Betfair Sportsbook,1.95
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,Betfair Sportsbook,3.4
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,Betfair Sportsbook,3.5
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,Betfair Exchange,2.12
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,Betfair Exchange,3.45
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,Betfair Exchange,3.7
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,BetMGM,1.87
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,BetMGM,3.35
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,BetMGM,4.0
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,BetVictor,2.0
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,BetVictor,3.3
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,BetVictor,3.4
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,Betway,2.0
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,Betway,3.25
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,Betway,3.5
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,Coral,1.95
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,Coral,3.2
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,Coral,3.4
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Casa,Ladbrokes,1.95
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Empate,Ladbrokes,3.2
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Resultado 1X2,Fora,Ladbrokes,3.4
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Total de Gols,Over 2.5,Bet365,1.98
-SP2|2026-05-18 19:30|Leganes|Huesca,2026-05-18 19:30:00,2026-05-18 14:30:00,Europe/Madrid,SP2,Leganes,Huesca,Total de Gols,Under 2.5,Bet365,1.83
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,Bet365,1.09
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,Bet365,11.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,Bet365,23.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,Betfair Sportsbook,1.1
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,Betfair Sportsbook,10.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,Betfair Sportsbook,23.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,Betfair Exchange,1.11
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,Betfair Exchange,13.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,Betfair Exchange,32.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,BetMGM,1.07
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,BetMGM,10.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,BetMGM,20.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,BetVictor,1.06
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,BetVictor,10.5
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,BetVictor,26.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,Betway,1.11
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,Betway,11.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,Betway,20.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,Coral,1.11
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,Coral,11.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,Coral,19.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Casa,Ladbrokes,1.1
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Empate,Ladbrokes,11.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Resultado 1X2,Fora,Ladbrokes,19.0
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Total de Gols,Over 2.5,Bet365,1.33
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Total de Gols,Under 2.5,Bet365,3.4
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Total de Gols,Over 2.5,Betfair Exchange,1.37
-E0|2026-05-18 20:00|Arsenal|Burnley,2026-05-18 20:00:00,2026-05-18 16:00:00,Europe/London,E0,Arsenal,Burnley,Total de Gols,Under 2.5,Betfair Exchange,3.5
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Casa,Betfair Sportsbook,1.53
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Empate,Betfair Sportsbook,3.75
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Fora,Betfair Sportsbook,6.0
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Casa,Betfair Exchange,1.55
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Empate,Betfair Exchange,3.55
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Fora,Betfair Exchange,4.8
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Casa,BetMGM,1.67
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Empate,BetMGM,3.5
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Fora,BetMGM,5.2
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Casa,Betway,1.57
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Empate,Betway,4.0
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Fora,Betway,5.5
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Casa,Coral,1.53
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Empate,Coral,3.75
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Fora,Coral,5.0
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Casa,Ladbrokes,1.53
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Empate,Ladbrokes,3.75
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Resultado 1X2,Fora,Ladbrokes,5.0
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Total de Gols,Over 2.5,Betfair Exchange,1.86
+G1|2026-05-21 16:00|Atromitos|Panserraikos,2026-05-21 16:00:00,2026-05-21 10:00:00,Europe/Athens,G1,Atromitos,Panserraikos,Total de Gols,Under 2.5,Betfair Exchange,1.86
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Casa,Betfair Sportsbook,2.25
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Empate,Betfair Sportsbook,3.2
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Fora,Betfair Sportsbook,3.0
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Casa,Betfair Exchange,2.24
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Empate,Betfair Exchange,3.15
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Fora,Betfair Exchange,3.25
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Casa,Betway,2.3
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Empate,Betway,3.25
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Fora,Betway,3.0
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Casa,Coral,2.2
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Empate,Coral,3.1
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Fora,Coral,2.9
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Casa,Ladbrokes,2.2
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Empate,Ladbrokes,3.1
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Resultado 1X2,Fora,Ladbrokes,2.9
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Total de Gols,Over 2.5,Betfair Exchange,2.08
+G1|2026-05-21 17:00|Kifisia|Larisa,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Kifisia,Larisa,Total de Gols,Under 2.5,Betfair Exchange,1.74
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Casa,Betfair Sportsbook,2.25
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Empate,Betfair Sportsbook,3.2
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Fora,Betfair Sportsbook,3.0
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Casa,Betfair Exchange,2.44
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Empate,Betfair Exchange,3.15
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Fora,Betfair Exchange,2.98
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Casa,BetMGM,2.4
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Empate,BetMGM,3.1
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Fora,BetMGM,2.95
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Casa,Betway,2.35
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Empate,Betway,3.25
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Fora,Betway,2.95
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Casa,Coral,2.25
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Empate,Coral,3.1
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Fora,Coral,2.87
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Casa,Ladbrokes,2.25
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Empate,Ladbrokes,3.1
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Resultado 1X2,Fora,Ladbrokes,2.87
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Total de Gols,Over 2.5,Betfair Exchange,2.1
+G1|2026-05-21 17:00|Panetolikos|Asteras Tripolis,2026-05-21 17:00:00,2026-05-21 11:00:00,Europe/Athens,G1,Panetolikos,Asteras Tripolis,Total de Gols,Under 2.5,Betfair Exchange,1.75
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Casa,Bet365,2.2
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Empate,Bet365,3.75
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Fora,Bet365,3.0
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Casa,Betfair Sportsbook,2.2
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Empate,Betfair Sportsbook,3.6
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Fora,Betfair Sportsbook,2.8
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Casa,Betfair Exchange,2.24
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Empate,Betfair Exchange,3.8
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Fora,Betfair Exchange,3.1
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Casa,BetMGM,2.07
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Empate,BetMGM,3.45
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Fora,BetMGM,2.88
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Casa,Betway,2.2
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Empate,Betway,3.7
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Fora,Betway,3.0
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Casa,Coral,2.2
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Empate,Coral,3.7
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Fora,Coral,3.0
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Casa,Ladbrokes,2.2
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Empate,Ladbrokes,3.7
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Resultado 1X2,Fora,Ladbrokes,3.0
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Total de Gols,Over 2.5,Bet365,1.6
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Total de Gols,Under 2.5,Bet365,2.3
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Total de Gols,Over 2.5,Betfair Exchange,1.63
+B1|2026-05-21 19:30|Anderlecht|St Truiden,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Anderlecht,St Truiden,Total de Gols,Under 2.5,Betfair Exchange,2.36
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Casa,Bet365,4.5
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Empate,Bet365,3.7
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Fora,Bet365,1.75
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Casa,Betfair Sportsbook,4.2
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Empate,Betfair Sportsbook,3.6
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Fora,Betfair Sportsbook,1.73
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Casa,Betfair Exchange,4.6
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Empate,Betfair Exchange,3.7
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Fora,Betfair Exchange,1.77
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Casa,BetMGM,4.3
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Empate,BetMGM,3.55
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Fora,BetMGM,1.67
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Casa,Betway,4.4
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Empate,Betway,3.6
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Fora,Betway,1.8
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Casa,Coral,4.4
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Empate,Coral,3.6
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Fora,Coral,1.8
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Casa,Ladbrokes,4.4
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Empate,Ladbrokes,3.6
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Resultado 1X2,Fora,Ladbrokes,1.8
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Total de Gols,Over 2.5,Bet365,1.9
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Total de Gols,Under 2.5,Bet365,1.9
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Total de Gols,Over 2.5,Betfair Exchange,1.89
+B1|2026-05-21 19:30|Gent|St. Gilloise,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Gent,St. Gilloise,Total de Gols,Under 2.5,Betfair Exchange,1.9
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Casa,Bet365,7.0
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Empate,Bet365,4.75
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Fora,Bet365,1.38
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Casa,Betfair Sportsbook,6.5
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Empate,Betfair Sportsbook,5.0
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Fora,Betfair Sportsbook,1.36
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Casa,Betfair Exchange,7.2
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Empate,Betfair Exchange,5.5
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Fora,Betfair Exchange,1.39
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Casa,BetMGM,6.75
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Empate,BetMGM,4.9
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Fora,BetMGM,1.32
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Casa,Betway,6.5
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Empate,Betway,5.25
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Fora,Betway,1.41
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Casa,Coral,6.5
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Empate,Coral,5.25
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Fora,Coral,1.4
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Casa,Ladbrokes,6.5
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Empate,Ladbrokes,5.25
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Resultado 1X2,Fora,Ladbrokes,1.4
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Total de Gols,Over 2.5,Bet365,1.4
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Total de Gols,Under 2.5,Bet365,2.88
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Total de Gols,Over 2.5,Betfair Exchange,1.41
+B1|2026-05-21 19:30|Mechelen|Club Brugge,2026-05-21 19:30:00,2026-05-21 14:30:00,Europe/Brussels,B1,Mechelen,Club Brugge,Total de Gols,Under 2.5,Betfair Exchange,3.0

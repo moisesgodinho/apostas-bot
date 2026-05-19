@@ -18,6 +18,7 @@ from config import (
     NO_VIG_DRAW_COL,
     NO_VIG_HOME_COL,
     NO_VIG_OVER_COL,
+    NO_VIG_UNDER_COL,
     ODD_AWAY_COL,
     ODD_DRAW_COL,
     ODD_HOME_COL,
@@ -27,6 +28,7 @@ from config import (
     RAW_IMPLIED_DRAW_COL,
     RAW_IMPLIED_HOME_COL,
     RAW_IMPLIED_OVER_COL,
+    RAW_IMPLIED_UNDER_COL,
 )
 from data_pipeline import (
     AWAY_ODDS_CANDIDATES,
@@ -35,6 +37,7 @@ from data_pipeline import (
     OVER_CANDIDATES,
     UNDER_CANDIDATES,
     add_no_vig_market_probabilities,
+    add_odds_movement_features,
     coalesce_numeric_columns,
     parse_match_datetime,
 )
@@ -386,6 +389,7 @@ def load_upcoming_fixtures(
         AWAY_ODDS_CANDIDATES,
     )
     fixtures = add_no_vig_market_probabilities(fixtures)
+    fixtures = add_odds_movement_features(fixtures)
     fixtures = add_best_bookmaker_odds(fixtures)
 
     print(
@@ -403,7 +407,16 @@ def implied_probability_from_best_odd(data: pd.DataFrame, odd_col: str) -> pd.Se
 def has_over_under_odds(data: pd.DataFrame) -> pd.Series:
     """Indica linhas com odds suficientes para o mercado Over/Under."""
     return (
-        data[[ODD_OVER_COL, ODD_UNDER_COL, RAW_IMPLIED_OVER_COL, NO_VIG_OVER_COL]]
+        data[
+            [
+                ODD_OVER_COL,
+                ODD_UNDER_COL,
+                RAW_IMPLIED_OVER_COL,
+                RAW_IMPLIED_UNDER_COL,
+                NO_VIG_OVER_COL,
+                NO_VIG_UNDER_COL,
+            ]
+        ]
         .notna()
         .all(axis=1)
     )
