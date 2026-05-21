@@ -1,9 +1,7 @@
-﻿Market,Trial,ValidationLogLoss,n_estimators,learning_rate,max_depth,subsample,colsample_bytree,min_child_weight,reg_lambda,reg_alpha,random_state,n_jobs,verbosity,objective,eval_metric,num_class
-Total Gols 2.5,2,0.669951194564727,300,0.04,2,0.9,0.9,2.0,1.5,0.0,42,-1,0,binary:logistic,logloss,
-Total Gols 2.5,3,0.6709370309626231,500,0.025,3,0.8,0.8,3.0,2.0,0.0,42,-1,0,binary:logistic,logloss,
-Total Gols 2.5,1,0.6709502061422836,400,0.03,3,0.85,0.85,1.0,1.0,0.0,42,-1,0,binary:logistic,logloss,
-Total Gols 2.5,4,0.6734323210667988,250,0.05,4,0.75,0.85,2.0,2.5,0.05,42,-1,0,binary:logistic,logloss,
-Resultado 1X2 / Vitoria,2,0.9782287636727344,300,0.04,2,0.9,0.9,2.0,1.5,0.0,42,-1,0,multi:softprob,mlogloss,3.0
-Resultado 1X2 / Vitoria,3,0.9798193398182226,500,0.025,3,0.8,0.8,3.0,2.0,0.0,42,-1,0,multi:softprob,mlogloss,3.0
-Resultado 1X2 / Vitoria,1,0.9798263848737883,400,0.03,3,0.85,0.85,1.0,1.0,0.0,42,-1,0,multi:softprob,mlogloss,3.0
-Resultado 1X2 / Vitoria,4,0.9820680324785652,250,0.05,4,0.75,0.85,2.0,2.5,0.05,42,-1,0,multi:softprob,mlogloss,3.0
+﻿Market,Trial,ValidationLogLoss,UsesSampleWeight,n_estimators,learning_rate,max_depth,subsample,colsample_bytree,min_child_weight,reg_lambda,reg_alpha,random_state,n_jobs,verbosity,objective,eval_metric
+Total Gols 2.5,5,0.6725822821192503,True,650,0.02,2,0.95,0.75,4.0,3.0,0.05,42,-1,0,binary:logistic,logloss
+Total Gols 2.5,2,0.6727232684002863,True,300,0.04,2,0.9,0.9,2.0,1.5,0.0,42,-1,0,binary:logistic,logloss
+Total Gols 2.5,3,0.6771994996482468,True,500,0.025,3,0.8,0.8,3.0,2.0,0.0,42,-1,0,binary:logistic,logloss
+Total Gols 2.5,6,0.6788337209271679,True,350,0.035,3,0.7,0.7,5.0,4.0,0.1,42,-1,0,binary:logistic,logloss
+Total Gols 2.5,1,0.6789753369141662,True,400,0.03,3,0.85,0.85,1.0,1.0,0.0,42,-1,0,binary:logistic,logloss
+Total Gols 2.5,4,0.6900524206670734,True,250,0.05,4,0.75,0.85,2.0,2.5,0.05,42,-1,0,binary:logistic,logloss

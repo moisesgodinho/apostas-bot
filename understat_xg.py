@@ -66,6 +66,27 @@ UNDERSTAT_XG_COLUMNS = [
     "Understat_Away_Win_xG_Prob",
     "Understat_XG_Available",
 ]
+UNDERSTAT_CACHE_COLUMNS = [
+    "Liga",
+    "Temporada",
+    "UnderstatSeason",
+    "UnderstatLeague",
+    "Understat_MatchId",
+    "MatchDatetime",
+    "MatchDate",
+    "UnderstatHomeTeam",
+    "UnderstatAwayTeam",
+    "HomeTeamKey",
+    "AwayTeamKey",
+    "Understat_Home_xG",
+    "Understat_Away_xG",
+    "Understat_Home_Win_xG_Prob",
+    "Understat_Draw_xG_Prob",
+    "Understat_Away_Win_xG_Prob",
+    "Understat_IsResult",
+    "Understat_Total_xG",
+    "Understat_XG_Available",
+]
 
 
 def normalize_team_name(value: object) -> str:
@@ -189,13 +210,23 @@ def load_understat_matches(
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_path = _understat_cache_path(cache_dir, league_code, understat_season)
     if cache_path.exists() and cache_path.stat().st_size > 0 and not force_refresh:
-        return pd.read_csv(cache_path, parse_dates=["MatchDatetime"])
+        try:
+            return pd.read_csv(cache_path, parse_dates=["MatchDatetime"])
+        except (
+            OSError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+            ValueError,
+        ):
+            cache_path.unlink(missing_ok=True)
 
     print(
         "[understat] Baixando xG "
         f"{UNDERSTAT_LEAGUE_MAP[league_code]} {understat_season}"
     )
     data = _fetch_understat_matches(league_code, understat_season)
+    if data.empty:
+        data = pd.DataFrame(columns=UNDERSTAT_CACHE_COLUMNS)
     data.to_csv(cache_path, index=False, encoding="utf-8-sig")
     time.sleep(1)
     return data

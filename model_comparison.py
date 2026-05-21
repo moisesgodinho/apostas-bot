@@ -16,6 +16,7 @@ from backtesting import (
 from config import PipelineConfig, RESULT_TARGET_COL, TARGET_COL
 from data_pipeline import chronological_train_test_split
 from modeling import (
+    build_time_decay_sample_weights,
     evaluate_match_result_model,
     evaluate_model,
     train_calibrated_xgboost_model,
@@ -144,6 +145,16 @@ def _run_variant(
         config.train_size,
         target_col=target_col,
     )
+    train_data = data.iloc[: len(x_train)].copy()
+    sample_weight = (
+        build_time_decay_sample_weights(
+            train_data["MatchDatetime"],
+            half_life_days=config.time_decay_half_life_days,
+            min_weight=config.min_time_decay_weight,
+        )
+        if config.use_time_decay_weights
+        else None
+    )
     model = train_calibrated_xgboost_model(
         x_train,
         y_train,
@@ -151,8 +162,8 @@ def _run_variant(
         config.calibration_method,
         config.xgb_tuning_trials,
         config.xgb_tuning_validation_size,
+        sample_weight=sample_weight,
     )
-    train_data = data.iloc[: len(x_train)].copy()
     test_data = data.iloc[len(x_train) :].copy()
     return model, train_data, test_data, y_test, x_test
 

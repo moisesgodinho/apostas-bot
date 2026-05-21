@@ -24,7 +24,12 @@ htmlcov/
 streamlit*.log
 
 # Downloaded API caches that can be rebuilt
+raw_data/[0-9][0-9][0-9][0-9]_*.csv
+raw_data/BRA.csv
+raw_data/fixtures.csv
 raw_data/understat_xg/
+raw_data/clubelo/
+!raw_data/lineup_features.csv
 
 # Temporary experiment outputs
 outputs_blend_test/

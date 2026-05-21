@@ -6,6 +6,7 @@ Execute com:
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ RESULT_1X2_PATH = OUTPUT_DIR / "backtest_result_1x2_results.csv"
 WIN_PATH = OUTPUT_DIR / "backtest_win_results.csv"
 UPCOMING_PATH = OUTPUT_DIR / "upcoming_predictions.csv"
 UPCOMING_ODDS_PATH = OUTPUT_DIR / "upcoming_odds_by_bookmaker.csv"
+UPCOMING_CONTEXT_PATH = OUTPUT_DIR / "upcoming_context_summary.csv"
 COMPARISON_PATH = OUTPUT_DIR / "model_comparison_summary.csv"
 FILTER_OPTIMIZATION_PATH = OUTPUT_DIR / "filter_optimization_summary.csv"
 FILTER_OPTIMIZATION_GRID_PATH = OUTPUT_DIR / "filter_optimization_grid.csv"
@@ -40,6 +42,18 @@ REALISTIC_GRID_PATH = OUTPUT_DIR / "realistic_backtest_grid.csv"
 REALISTIC_BETS_PATH = OUTPUT_DIR / "realistic_backtest_bets.csv"
 REALISTIC_MONTHLY_PATH = OUTPUT_DIR / "realistic_backtest_monthly.csv"
 REALISTIC_LEAGUE_PATH = OUTPUT_DIR / "realistic_backtest_league.csv"
+BACKTEST_MARKETS = [
+    "Over 2.5",
+    "Under 2.5",
+    "Resultado 1X2",
+    "Vitoria Casa/Fora",
+]
+BACKTEST_MARKET_PATHS = {
+    "Over 2.5": OVER25_PATH,
+    "Under 2.5": UNDER25_PATH,
+    "Resultado 1X2": RESULT_1X2_PATH,
+    "Vitoria Casa/Fora": WIN_PATH,
+}
 PIPELINE_PATH = BASE_DIR / "over25_ev_model.py"
 PREDICT_UPCOMING_PATH = BASE_DIR / "predict_upcoming.py"
 LEAGUE_NAME_MAP = {
@@ -205,7 +219,7 @@ st.set_page_config(
 def load_csv(path: Path, modified_at: float) -> pd.DataFrame:
     """Carrega um CSV de backtest com datas normalizadas."""
     _ = modified_at
-    data = pd.read_csv(path)
+    data = pd.read_csv(path, low_memory=False)
     data["MatchDatetime"] = pd.to_datetime(data["MatchDatetime"], errors="coerce")
     data = data.dropna(subset=["MatchDatetime"]).copy()
     data["MatchDate"] = data["MatchDatetime"].dt.date
@@ -218,7 +232,7 @@ def load_optional_csv(path: Path, modified_at: float) -> pd.DataFrame:
     """Carrega CSV opcional, tratando arquivos vazios."""
     _ = modified_at
     try:
-        data = pd.read_csv(path)
+        data = pd.read_csv(path, low_memory=False)
     except pd.errors.EmptyDataError:
         return pd.DataFrame()
 
@@ -248,12 +262,43 @@ def format_money(value: float) -> str:
 
 def format_pct(value: float) -> str:
     """Formata percentual."""
-    return f"{value:.2%}"
+    return f"{value:.2%}".replace(".", ",")
+
+
+def format_table_pct(value: object) -> str:
+    """Formata proporcoes como percentual para tabelas estilizadas."""
+    if pd.isna(value):
+        return ""
+    try:
+        return format_pct(float(value))
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def format_table_money(value: object) -> str:
+    """Formata dinheiro para tabelas estilizadas."""
+    if pd.isna(value):
+        return ""
+    try:
+        return format_money(float(value))
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def format_table_decimal(value: object) -> str:
+    """Formata decimais simples para tabelas estilizadas."""
+    if pd.isna(value):
+        return ""
+    try:
+        return f"{float(value):.2f}".replace(".", ",")
+    except (TypeError, ValueError):
+        return str(value)
 
 
 STATUS_STYLE_COLUMNS = {
     "Escalacao",
     "Importancia",
+    "Leitura",
     "Status",
     "StatusAposta",
     "Decisao",
@@ -262,6 +307,8 @@ SIGNED_STYLE_COLUMNS = {
     "AvgEdge",
     "CalibrationBias",
     "CalibrationGap",
+    "ChanceMedia",
+    "ChanceMercado",
     "DeltaAccuracy",
     "DeltaBets",
     "DeltaProfit",
@@ -274,13 +321,17 @@ SIGNED_STYLE_COLUMNS = {
     "ImprovementVsModel",
     "Lucro",
     "LineupStrength_Diff",
+    "LucroPorAposta",
     "MarketEdge",
     "MissingKeyPlayers_Diff",
     "MissingStarters_Diff",
+    "Nota",
     "ROI",
+    "Retorno",
     "RoiGap",
     "RuleEvalROI",
     "SimProfit",
+    "SobraAcerto",
     "TestROI",
     "TestTotalProfit",
     "TotalProfit",
@@ -288,6 +339,7 @@ SIGNED_STYLE_COLUMNS = {
     "TuneTotalProfit",
     "ValROI",
     "ValTotalProfit",
+    "VantagemMedia",
     "ValueGap",
     "xG_Diff_Roll5",
 }
@@ -295,6 +347,65 @@ INVERTED_SIGNED_STYLE_COLUMNS = {
     "DeltaBrierScore",
     "DeltaCalibrationECE",
     "DeltaLogLoss",
+}
+PERCENT_STYLE_COLUMNS = {
+    "Accuracy",
+    "Acerto",
+    "AcertoNecessario",
+    "AvgEdge",
+    "CalibrationBias",
+    "CalibrationGap",
+    "ChanceMedia",
+    "ChanceMercado",
+    "DeltaAccuracy",
+    "DeltaCalibrationECE",
+    "DeltaROI",
+    "Edge",
+    "EdgeMedio",
+    "EvalHitRate",
+    "EvalROI",
+    "HitRate",
+    "ImpliedProb",
+    "MarketEdge",
+    "MinModelProb",
+    "ModelProb",
+    "NoVigProb",
+    "PositiveROIRate",
+    "ROI",
+    "Retorno",
+    "RoiGap",
+    "RuleEvalROI",
+    "SobraAcerto",
+    "TestHitRate",
+    "TestROI",
+    "TuneHitRate",
+    "TuneROI",
+    "ValROI",
+    "VantagemMedia",
+    "ValueGap",
+}
+MONEY_STYLE_COLUMNS = {
+    "Apostado",
+    "EvalTotalProfit",
+    "Lucro",
+    "LucroPorAposta",
+    "SimProfit",
+    "TestMaxDrawdown",
+    "TestTotalProfit",
+    "TotalProfit",
+    "TuneTotalProfit",
+    "ValTotalProfit",
+    "total_profit",
+}
+DECIMAL_STYLE_COLUMNS = {
+    "AvgOdd",
+    "BestOdd",
+    "CotacaoMedia",
+    "EvalAvgOdd",
+    "OddMedia",
+    "SelectionOdd",
+    "TestAvgOdd",
+    "avg_odd",
 }
 STATUS_COLOR_MAP = {
     "+EV": ("#dcfce7", "#166534"),
@@ -309,6 +420,11 @@ STATUS_COLOR_MAP = {
     "Passar": ("#f1f5f9", "#475569"),
     "Pouco volume": ("#e2e8f0", "#334155"),
     "Provavel": ("", "#2563eb"),
+    "Poucos jogos": ("#e2e8f0", "#334155"),
+    "Promissor": ("", "#2563eb"),
+    "Forte": ("#dcfce7", "#166534"),
+    "Evitar": ("#f1f5f9", "#475569"),
+    "Instavel": ("", "#b91c1c"),
     "Red": ("#fee2e2", "#991b1b"),
     "Sem +EV": ("#f1f5f9", "#475569"),
 }
@@ -347,6 +463,31 @@ def status_cell_style(value: object) -> str:
 def style_dashboard_table(data: pd.DataFrame):
     """Estiliza tabelas do dashboard com cores para status e sinais."""
     styler = data.style
+    formatters = {}
+    formatters.update(
+        {
+            column: format_table_pct
+            for column in PERCENT_STYLE_COLUMNS
+            if column in data.columns
+        }
+    )
+    formatters.update(
+        {
+            column: format_table_money
+            for column in MONEY_STYLE_COLUMNS
+            if column in data.columns
+        }
+    )
+    formatters.update(
+        {
+            column: format_table_decimal
+            for column in DECIMAL_STYLE_COLUMNS
+            if column in data.columns
+        }
+    )
+    if formatters:
+        styler = styler.format(formatters)
+
     status_columns = [
         column for column in STATUS_STYLE_COLUMNS if column in data.columns
     ]
@@ -519,6 +660,14 @@ def render_pipeline_runner() -> None:
             value=True,
             help="Gera validacao/teste por temporada, Kelly, drawdown e quebras.",
         )
+        use_clubelo = st.checkbox(
+            "Usar força real ClubElo",
+            value=False,
+            help=(
+                "Baixa ratings historicos do ClubElo e usa Elo interno como "
+                "fallback. A primeira execucao pode demorar mais."
+            ),
+        )
 
         run_clicked = st.button(
             "Rodar pipeline",
@@ -563,6 +712,8 @@ def render_pipeline_runner() -> None:
             command.append("--skip-filter-optimization")
         if not run_realistic:
             command.append("--skip-realistic-backtest")
+        if use_clubelo:
+            command.append("--use-clubelo")
 
         with st.spinner("Rodando pipeline. Isso pode levar alguns minutos..."):
             result = subprocess.run(
@@ -593,8 +744,9 @@ def render_upcoming_runner() -> None:
     """Renderiza controles para gerar palpites futuros."""
     with st.sidebar.expander("Atualizar palpites futuros", expanded=True):
         st.caption(
-            "Usa fixtures publicas do Football-Data. Brasil ainda precisa "
-            "de outra fonte de jogos futuros."
+            "Usa fixtures publicas do Football-Data. Os palpites futuros "
+            "ficam presos a Betano; se a fonte nao trouxer essa casa, a "
+            "tela mostra isso com clareza."
         )
         market = st.selectbox(
             "Mercados dos palpites",
@@ -646,6 +798,15 @@ def render_upcoming_runner() -> None:
             "Usar filtros otimizados positivos",
             value=True,
         )
+        use_clubelo = st.checkbox(
+            "Usar força real ClubElo",
+            value=False,
+            help=(
+                "Baixa ratings historicos do ClubElo e usa Elo interno como "
+                "fallback. A primeira execucao pode demorar mais."
+            ),
+            key="upcoming_use_clubelo",
+        )
         xgb_tuning_trials = st.number_input(
             "Tuning XGBoost",
             min_value=0,
@@ -682,11 +843,15 @@ def render_upcoming_runner() -> None:
             str(days_ahead),
             "--xgb-tuning-trials",
             str(xgb_tuning_trials),
+            "--preferred-bookmaker",
+            "Betano",
         ]
         if force_refresh:
             command.append("--force-refresh-fixtures")
         if not use_optimized_filters:
             command.append("--ignore-optimized-filters")
+        if use_clubelo:
+            command.append("--use-clubelo")
 
         with st.spinner("Gerando palpites. O treino pode levar alguns minutos..."):
             result = subprocess.run(
@@ -777,6 +942,18 @@ def load_market_data(market: str) -> pd.DataFrame:
     data["DefaultBet"] = data["Bet_Win"].astype(bool)
     data["Market"] = "Vitoria Casa/Fora"
     return data
+
+
+def load_available_backtests() -> pd.DataFrame:
+    """Carrega todos os mercados historicos que possuem CSV disponivel."""
+    frames = []
+    for market in BACKTEST_MARKETS:
+        path = BACKTEST_MARKET_PATHS[market]
+        if path.exists():
+            frames.append(load_market_data(market))
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True, sort=False)
 
 
 def apply_sidebar_filters(data: pd.DataFrame, key_prefix: str) -> pd.DataFrame:
@@ -1112,10 +1289,627 @@ def render_table(data: pd.DataFrame) -> None:
     )
 
 
-def load_upcoming_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Carrega palpites futuros e odds por casa."""
+def add_strength_segments(data: pd.DataFrame) -> pd.DataFrame:
+    """Cria faixas legiveis para descobrir onde o modelo performa melhor."""
+    segmented = data.copy()
+    segmented["CotacaoFaixa"] = pd.cut(
+        pd.to_numeric(segmented["SelectionOdd"], errors="coerce"),
+        bins=[0.0, 1.50, 1.80, 2.20, 3.00, 5.00, np.inf],
+        labels=[
+            "Ate 1.50",
+            "1.51 a 1.80",
+            "1.81 a 2.20",
+            "2.21 a 3.00",
+            "3.01 a 5.00",
+            "Acima de 5.00",
+        ],
+        include_lowest=True,
+    )
+    segmented["ChanceFaixa"] = pd.cut(
+        pd.to_numeric(segmented["ModelProb"], errors="coerce"),
+        bins=[0.0, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 1.0],
+        labels=[
+            "Ate 45%",
+            "45% a 50%",
+            "50% a 55%",
+            "55% a 60%",
+            "60% a 65%",
+            "65% a 70%",
+            "Acima de 70%",
+        ],
+        include_lowest=True,
+    )
+    segmented["VantagemFaixa"] = pd.cut(
+        pd.to_numeric(segmented["MarketEdge"], errors="coerce"),
+        bins=[-np.inf, 0.0, 0.02, 0.05, 0.08, 0.12, np.inf],
+        labels=[
+            "Sem vantagem",
+            "0% a 2%",
+            "2% a 5%",
+            "5% a 8%",
+            "8% a 12%",
+            "Acima de 12%",
+        ],
+    )
+
+    if "MatchImportance" in segmented.columns:
+        segmented["ImportanciaFaixa"] = pd.cut(
+            pd.to_numeric(segmented["MatchImportance"], errors="coerce"),
+            bins=[-0.01, 0.33, 0.66, 1.0],
+            labels=["Baixa", "Media", "Alta"],
+        )
+    if "xG_Expected_Total_Match_Roll5" in segmented.columns:
+        segmented["GolsEsperadosFaixa"] = pd.cut(
+            pd.to_numeric(
+                segmented["xG_Expected_Total_Match_Roll5"],
+                errors="coerce",
+            ),
+            bins=[-np.inf, 2.00, 2.50, 3.00, 3.50, np.inf],
+            labels=[
+                "Ate 2.00",
+                "2.01 a 2.50",
+                "2.51 a 3.00",
+                "3.01 a 3.50",
+                "Acima de 3.50",
+            ],
+        )
+    if "LineupStrength_Diff" in segmented.columns:
+        segmented["ForcaTitularesFaixa"] = pd.cut(
+            pd.to_numeric(segmented["LineupStrength_Diff"], errors="coerce"),
+            bins=[-np.inf, -0.15, 0.15, np.inf],
+            labels=["Visitante melhor", "Equilibrado", "Casa melhor"],
+        )
+    return segmented
+
+
+def strength_status(row: pd.Series, min_bets: int) -> str:
+    """Classifica um recorte pelo retorno, acerto e volume."""
+    if row["Apostas"] < min_bets:
+        return "Poucos jogos"
+    if row["Retorno"] > 0 and row["SobraAcerto"] > 0:
+        return "Forte"
+    if row["Retorno"] > 0:
+        return "Promissor"
+    if row["SobraAcerto"] > 0:
+        return "Instavel"
+    return "Evitar"
+
+
+def summarize_strength_groups(
+    data: pd.DataFrame,
+    group_columns: list[str],
+    label: str,
+    min_bets: int,
+) -> pd.DataFrame:
+    """Resume retorno e acerto para um recorte especifico."""
+    bets = data[data["SimBet"]].copy()
+    group_columns = [column for column in group_columns if column in bets.columns]
+    if bets.empty or not group_columns:
+        return pd.DataFrame()
+
+    grouped = bets.groupby(group_columns, dropna=False, observed=True)
+    summary = grouped.agg(
+        Apostas=("SimBet", "size"),
+        Lucro=("SimProfit", "sum"),
+        Apostado=("SimStake", "sum"),
+        Acerto=("Hit", "mean"),
+        CotacaoMedia=("SelectionOdd", "mean"),
+        ChanceMedia=("ModelProb", "mean"),
+        VantagemMedia=("MarketEdge", "mean"),
+        ChanceMercado=("NoVigProb", "mean"),
+    ).reset_index()
+    if summary.empty:
+        return summary
+
+    if len(group_columns) == 1:
+        summary["Grupo"] = summary[group_columns[0]].astype(str)
+    else:
+        summary["Grupo"] = summary[group_columns].astype(str).agg(" / ".join, axis=1)
+    summary["Grupo"] = summary["Grupo"].replace({"nan": "Sem dado"})
+    summary["Recorte"] = label
+    summary["Retorno"] = np.where(
+        summary["Apostado"].gt(0),
+        summary["Lucro"] / summary["Apostado"],
+        0.0,
+    )
+    summary["AcertoNecessario"] = summary["ChanceMercado"].fillna(
+        1.0 / summary["CotacaoMedia"].replace(0, np.nan),
+    )
+    summary["SobraAcerto"] = summary["Acerto"] - summary["AcertoNecessario"]
+    summary["LucroPorAposta"] = np.where(
+        summary["Apostas"].gt(0),
+        summary["Lucro"] / summary["Apostas"],
+        0.0,
+    )
+    volume_weight = np.minimum(1.0, summary["Apostas"] / max(min_bets, 1))
+    summary["Nota"] = (summary["Retorno"] + summary["SobraAcerto"]) * volume_weight
+    summary["Leitura"] = summary.apply(
+        lambda row: strength_status(row, min_bets),
+        axis=1,
+    )
+    return summary.sort_values(
+        ["Nota", "Lucro", "Apostas"],
+        ascending=[False, False, False],
+        kind="mergesort",
+    )
+
+
+def strength_column_config() -> dict[str, object]:
+    """Configuracao comum das tabelas de pontos fortes."""
+    return {
+        "Recorte": "Recorte",
+        "Grupo": "Grupo",
+        "Leitura": "Leitura",
+        "Apostas": st.column_config.NumberColumn("Apostas", format="%.0f"),
+        "Lucro": st.column_config.NumberColumn("Lucro", format="R$ %.2f"),
+        "Apostado": st.column_config.NumberColumn("Apostado", format="R$ %.2f"),
+        "Retorno": st.column_config.NumberColumn("Retorno", format="percent"),
+        "Acerto": st.column_config.NumberColumn("Acerto", format="percent"),
+        "AcertoNecessario": st.column_config.NumberColumn(
+            "Acerto minimo",
+            format="percent",
+        ),
+        "SobraAcerto": st.column_config.NumberColumn(
+            "Sobra no acerto",
+            format="percent",
+        ),
+        "CotacaoMedia": st.column_config.NumberColumn(
+            "Cotacao media",
+            format="%.2f",
+        ),
+        "ChanceMedia": st.column_config.NumberColumn(
+            "Chance media",
+            format="percent",
+        ),
+        "VantagemMedia": st.column_config.NumberColumn(
+            "Vantagem media",
+            format="percent",
+        ),
+        "LucroPorAposta": st.column_config.NumberColumn(
+            "Lucro/aposta",
+            format="R$ %.2f",
+        ),
+        "Nota": st.column_config.NumberColumn("Nota", format="%.3f"),
+    }
+
+
+def render_strength_table(summary: pd.DataFrame, row_limit: int = 80) -> None:
+    """Mostra tabela padronizada de recortes."""
+    if summary.empty:
+        st.info("Nenhum recorte encontrado com os filtros atuais.")
+        return
+
+    visible_columns = [
+        "Recorte",
+        "Grupo",
+        "Leitura",
+        "Apostas",
+        "Lucro",
+        "Retorno",
+        "Acerto",
+        "AcertoNecessario",
+        "SobraAcerto",
+        "CotacaoMedia",
+        "ChanceMedia",
+        "VantagemMedia",
+        "LucroPorAposta",
+        "Nota",
+    ]
+    visible_columns = [column for column in visible_columns if column in summary]
+    st.dataframe(
+        style_dashboard_table(summary[visible_columns].head(row_limit)),
+        width="stretch",
+        hide_index=True,
+        column_config=strength_column_config(),
+    )
+
+
+def render_strength_charts(summary: pd.DataFrame, title: str) -> None:
+    """Mostra graficos para comparar recortes fortes e fracos."""
+    if summary.empty:
+        return
+
+    plot_data = summary.head(25).copy()
+    left, right = st.columns((1.25, 1.0))
+    with left:
+        fig = px.bar(
+            plot_data.sort_values("Retorno", ascending=True),
+            x="Retorno",
+            y="Grupo",
+            color="Retorno",
+            hover_data=["Recorte", "Apostas", "Lucro", "Acerto", "CotacaoMedia"],
+            labels={
+                "Grupo": "Grupo",
+                "Retorno": "Retorno",
+                "Apostas": "Apostas",
+                "Lucro": "Lucro",
+                "Acerto": "Acerto",
+                "CotacaoMedia": "Cotacao media",
+            },
+            title=title,
+            color_continuous_scale="RdYlGn",
+        )
+        fig.add_vline(x=0, line_dash="dot", line_color="gray")
+        fig.update_xaxes(tickformat=".0%")
+        fig.update_layout(height=520, margin=dict(l=10, r=10, t=55, b=10))
+        st.plotly_chart(fig, width="stretch")
+
+    with right:
+        fig = px.scatter(
+            summary,
+            x="Acerto",
+            y="Retorno",
+            size="Apostas",
+            color="Leitura",
+            hover_data=["Recorte", "Grupo", "Lucro", "SobraAcerto", "CotacaoMedia"],
+            labels={
+                "Acerto": "Acerto",
+                "Retorno": "Retorno",
+                "Apostas": "Apostas",
+                "Leitura": "Leitura",
+                "SobraAcerto": "Sobra no acerto",
+                "CotacaoMedia": "Cotacao media",
+            },
+            title="Acerto vs retorno",
+        )
+        fig.add_hline(y=0, line_dash="dot", line_color="gray")
+        fig.update_xaxes(tickformat=".0%")
+        fig.update_yaxes(tickformat=".0%")
+        fig.update_layout(height=520, margin=dict(l=10, r=10, t=55, b=10))
+        st.plotly_chart(fig, width="stretch")
+
+
+def build_strength_dimensions(data: pd.DataFrame) -> dict[str, list[str]]:
+    """Define recortes disponiveis conforme as colunas carregadas."""
+    dimensions = {
+        "Campeonato": ["LigaNome"],
+        "Campeonato + mercado": ["LigaNome", "Market"],
+        "Mercado": ["Market"],
+        "Palpite": ["Selection"],
+        "Mercado + palpite": ["Market", "Selection"],
+        "Cotacao": ["CotacaoFaixa"],
+        "Chance do modelo": ["ChanceFaixa"],
+        "Vantagem": ["VantagemFaixa"],
+    }
+    optional_dimensions = {
+        "Importancia do jogo": ["ImportanciaFaixa"],
+        "Gols esperados": ["GolsEsperadosFaixa"],
+        "Forca dos titulares": ["ForcaTitularesFaixa"],
+    }
+    dimensions.update(
+        {
+            label: columns
+            for label, columns in optional_dimensions.items()
+            if all(column in data.columns for column in columns)
+        }
+    )
+    return dimensions
+
+
+def build_strength_summaries(
+    data: pd.DataFrame,
+    min_bets: int,
+) -> dict[str, pd.DataFrame]:
+    """Monta resumos para todos os recortes do diagnostico."""
+    dimensions = build_strength_dimensions(data)
+    return {
+        label: summarize_strength_groups(data, columns, label, min_bets)
+        for label, columns in dimensions.items()
+    }
+
+
+def build_rule_suggestions(
+    data: pd.DataFrame,
+    min_bets: int,
+    stake: float,
+) -> pd.DataFrame:
+    """Testa combinacoes simples para sugerir regras de entrada."""
+    if data.empty:
+        return pd.DataFrame()
+
+    rows = []
+    edge_options = [0.00, 0.02, 0.05, 0.08, 0.10, 0.12]
+    probability_options = [0.45, 0.50, 0.55, 0.60, 0.65]
+    max_odd_options = [0.0, 1.60, 1.80, 2.20, 2.50, 3.00, 5.00]
+
+    for market, market_data in data.groupby("Market", sort=False):
+        for edge in edge_options:
+            for min_probability in probability_options:
+                for max_odd in max_odd_options:
+                    simulated = simulate_bets(
+                        market_data,
+                        edge=edge,
+                        min_probability=min_probability,
+                        max_odd=max_odd,
+                        stake=stake,
+                    )
+                    bets = simulated[simulated["SimBet"]].copy()
+                    if len(bets) < min_bets:
+                        continue
+
+                    summary = build_summary(simulated)
+                    break_even = float(
+                        (1.0 / bets["SelectionOdd"].replace(0, np.nan)).mean()
+                    )
+                    row = {
+                        "Market": market,
+                        "Apostas": summary["bets"],
+                        "Lucro": summary["profit"],
+                        "Retorno": summary["roi"],
+                        "Acerto": summary["hit_rate"],
+                        "AcertoNecessario": break_even,
+                        "SobraAcerto": summary["hit_rate"] - break_even,
+                        "CotacaoMedia": summary["avg_odd"],
+                        "ChanceMedia": summary["avg_prob"],
+                        "VantagemMedia": summary["avg_edge"],
+                    }
+                    row["LucroPorAposta"] = row["Lucro"] / row["Apostas"]
+                    row["Nota"] = row["Retorno"] + row["SobraAcerto"]
+                    row["Leitura"] = strength_status(pd.Series(row), min_bets)
+                    row["Regra"] = (
+                        f"Vantagem {edge:.0%}+ | Chance {min_probability:.0%}+ | "
+                        f"Cotacao {'sem limite' if max_odd <= 0 else f'ate {max_odd:.2f}'}"
+                    )
+                    rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows).sort_values(
+        ["Nota", "Lucro", "Apostas"],
+        ascending=[False, False, False],
+        kind="mergesort",
+    )
+
+
+def render_rule_suggestions(data: pd.DataFrame, min_bets: int, stake: float) -> None:
+    """Mostra regras candidatas para melhorar acerto e retorno."""
+    suggestions = build_rule_suggestions(data, min_bets=min_bets, stake=stake)
+    if suggestions.empty:
+        st.info("Nenhuma regra teve jogos suficientes com os filtros atuais.")
+        return
+
+    visible_columns = [
+        "Leitura",
+        "Market",
+        "Regra",
+        "Apostas",
+        "Lucro",
+        "Retorno",
+        "Acerto",
+        "AcertoNecessario",
+        "SobraAcerto",
+        "CotacaoMedia",
+        "ChanceMedia",
+        "VantagemMedia",
+        "LucroPorAposta",
+        "Nota",
+    ]
+    st.dataframe(
+        style_dashboard_table(suggestions[visible_columns].head(120)),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            **strength_column_config(),
+            "Market": "Mercado",
+            "Regra": "Regra sugerida",
+        },
+    )
+
+
+def apply_strength_filters(data: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Aplica filtros da tela de pontos fortes."""
+    st.sidebar.header("Filtros")
+    data_markets = set(data["Market"].unique())
+    available_markets = [
+        market for market in BACKTEST_MARKETS if market in data_markets
+    ]
+    selected_markets = st.sidebar.multiselect(
+        "Mercados",
+        options=available_markets,
+        default=available_markets,
+    )
+
+    leagues = ordered_leagues(data["Liga"].dropna().unique().tolist())
+    selected_leagues = render_league_selector(
+        "Campeonatos",
+        options=leagues,
+        default=leagues,
+        key="strength_leagues",
+        sidebar=True,
+    )
+
+    min_date = data["MatchDate"].min()
+    max_date = data["MatchDate"].max()
+    selected_dates = st.sidebar.date_input(
+        "Periodo",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+        key="strength_period",
+    )
+    if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+        start_date, end_date = selected_dates
+    else:
+        start_date, end_date = min_date, max_date
+
+    st.sidebar.header("Regra base")
+    edge = st.sidebar.slider(
+        "Vantagem minima",
+        min_value=0.0,
+        max_value=0.20,
+        value=0.05,
+        step=0.005,
+        format="%.3f",
+        key="strength_edge",
+    )
+    min_probability = st.sidebar.slider(
+        "Chance minima",
+        min_value=0.0,
+        max_value=0.90,
+        value=0.50,
+        step=0.01,
+        format="%.2f",
+        key="strength_probability",
+    )
+    max_odd = st.sidebar.number_input(
+        "Cotacao maxima (0 desativa)",
+        min_value=0.0,
+        max_value=20.0,
+        value=3.0,
+        step=0.05,
+        key="strength_max_odd",
+    )
+    stake = st.sidebar.number_input(
+        "Valor da aposta",
+        min_value=1.0,
+        max_value=1000.0,
+        value=10.0,
+        step=1.0,
+        key="strength_stake",
+    )
+    min_bets = st.sidebar.number_input(
+        "Min. apostas por grupo",
+        min_value=5,
+        max_value=500,
+        value=25,
+        step=5,
+        key="strength_min_bets",
+    )
+
+    filtered = data[
+        data["Market"].isin(selected_markets)
+        & data["Liga"].isin(selected_leagues)
+        & data["MatchDate"].between(start_date, end_date)
+    ].copy()
+    params = {
+        "edge": edge,
+        "min_probability": min_probability,
+        "max_odd": max_odd,
+        "stake": stake,
+        "min_bets": int(min_bets),
+    }
+    return filtered, params
+
+
+def render_model_strength_page() -> None:
+    """Mostra onde o modelo historicamente gera mais acerto e retorno."""
+    st.title("Apostasbot | Onde funciona melhor")
+    st.caption(
+        "Descubra os recortes em que o modelo mais gera lucro, acerto e "
+        "vantagem real sobre o mercado."
+    )
+    render_pipeline_runner()
+
+    data = load_available_backtests()
+    if data.empty:
+        st.info("Rode a atualizacao dos testes historicos para gerar os CSVs.")
+        return
+
+    filtered, params = apply_strength_filters(data)
+    if filtered.empty:
+        st.info("Nenhum jogo encontrado com os filtros atuais.")
+        return
+
+    simulated = simulate_bets(
+        filtered.sort_values("MatchDatetime"),
+        edge=float(params["edge"]),
+        min_probability=float(params["min_probability"]),
+        max_odd=float(params["max_odd"]),
+        stake=float(params["stake"]),
+    )
+    if not simulated["SimBet"].any():
+        st.info("A regra base nao gerou apostas neste periodo.")
+        return
+
+    render_metric_row(build_summary(simulated))
+    st.divider()
+
+    segmented = add_strength_segments(simulated)
+    summaries = build_strength_summaries(
+        segmented,
+        min_bets=int(params["min_bets"]),
+    )
+    all_summaries = [
+        summary for summary in summaries.values() if not summary.empty
+    ]
+    combined = (
+        pd.concat(all_summaries, ignore_index=True, sort=False)
+        if all_summaries
+        else pd.DataFrame()
+    )
+    qualified = (
+        combined[combined["Apostas"].ge(int(params["min_bets"]))].copy()
+        if not combined.empty
+        else combined
+    )
+
+    st.subheader("Melhores recortes")
+    best_groups = qualified if not qualified.empty else combined
+    render_strength_charts(best_groups.head(50), "Top recortes por retorno")
+    render_strength_table(best_groups, row_limit=40)
+
+    tabs = st.tabs(
+        [
+            "Campeonatos",
+            "Faixas",
+            "Mercado e palpite",
+            "Regras sugeridas",
+            "Todos os recortes",
+        ]
+    )
+    with tabs[0]:
+        league_summary = summaries.get("Campeonato", pd.DataFrame())
+        render_strength_charts(league_summary, "Retorno por campeonato")
+        render_strength_table(league_summary)
+        league_market = summaries.get("Campeonato + mercado", pd.DataFrame())
+        st.subheader("Campeonato + mercado")
+        render_strength_table(league_market, row_limit=120)
+
+    with tabs[1]:
+        faixa_options = [
+            label
+            for label in [
+                "Cotacao",
+                "Chance do modelo",
+                "Vantagem",
+                "Importancia do jogo",
+                "Gols esperados",
+                "Forca dos titulares",
+            ]
+            if label in summaries
+        ]
+        selected_faixa = st.selectbox(
+            "Ver faixa",
+            options=faixa_options,
+            key="strength_band_select",
+        )
+        faixa_summary = summaries.get(selected_faixa, pd.DataFrame())
+        render_strength_charts(faixa_summary, f"Retorno por {selected_faixa.lower()}")
+        render_strength_table(faixa_summary)
+
+    with tabs[2]:
+        market_summary = summaries.get("Mercado", pd.DataFrame())
+        selection_summary = summaries.get("Mercado + palpite", pd.DataFrame())
+        render_strength_charts(market_summary, "Retorno por mercado")
+        render_strength_table(market_summary)
+        st.subheader("Mercado + palpite")
+        render_strength_table(selection_summary)
+
+    with tabs[3]:
+        render_rule_suggestions(
+            filtered.sort_values("MatchDatetime"),
+            min_bets=int(params["min_bets"]),
+            stake=float(params["stake"]),
+        )
+
+    with tabs[4]:
+        render_strength_table(best_groups, row_limit=250)
+
+
+def load_upcoming_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Carrega palpites futuros, odds por casa e contexto da casa usada."""
     if not UPCOMING_PATH.exists():
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     predictions = load_optional_csv(UPCOMING_PATH, UPCOMING_PATH.stat().st_mtime)
     if not predictions.empty:
@@ -1146,6 +1940,8 @@ def load_upcoming_data() -> tuple[pd.DataFrame, pd.DataFrame]:
             "xG_Total_Roll5": pd.NA,
             "xG_Expected_Total_Match_Roll5": pd.NA,
             "xG_Diff_Roll5": pd.NA,
+            "RequestedBookmaker": "Melhor disponivel",
+            "PreferredBookmakerAvailable": pd.NA,
         }
         for column, default_value in defaults.items():
             if column not in predictions.columns:
@@ -1158,7 +1954,14 @@ def load_upcoming_data() -> tuple[pd.DataFrame, pd.DataFrame]:
         )
     else:
         odds = pd.DataFrame()
-    return predictions, odds
+    if UPCOMING_CONTEXT_PATH.exists():
+        context = load_optional_csv(
+            UPCOMING_CONTEXT_PATH,
+            UPCOMING_CONTEXT_PATH.stat().st_mtime,
+        )
+    else:
+        context = pd.DataFrame()
+    return predictions, odds, context
 
 
 def use_generated_upcoming_value(data: pd.DataFrame) -> pd.DataFrame:
@@ -1346,6 +2149,13 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
     table["ValueGap"] = table["ModelProb"] - table["ImpliedProb"]
     table["EdgeTable"] = table["Edge"]
     table["OddTable"] = table["BestOdd"]
+    for optional_col in [
+        "TeamStrength_Diff",
+        "TeamStrength_Expected_Home",
+        "ClubElo_DataAvailable",
+    ]:
+        if optional_col not in table.columns:
+            table[optional_col] = np.nan
     if decision == "+EV":
         table = table[table["UiValueBet"]].copy()
     elif decision == "Sem +EV":
@@ -1375,6 +2185,9 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
             "Away_PreMatch_Rank",
             "RuleSource",
             "RegraFiltro",
+            "TeamStrength_Diff",
+            "TeamStrength_Expected_Home",
+            "ClubElo_DataAvailable",
             "Elo_Diff",
             "Elo_Expected_Home",
             "BestBookmaker",
@@ -1433,6 +2246,20 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
             ),
             "RuleSource": "Regra",
             "RegraFiltro": "Filtro",
+            "TeamStrength_Diff": st.column_config.NumberColumn(
+                "Forca real",
+                format="%.0f",
+            ),
+            "TeamStrength_Expected_Home": st.column_config.ProgressColumn(
+                "Forca casa",
+                format="%.2f",
+                min_value=0.0,
+                max_value=1.0,
+            ),
+            "ClubElo_DataAvailable": st.column_config.CheckboxColumn(
+                "ClubElo",
+                disabled=True,
+            ),
             "Elo_Diff": st.column_config.NumberColumn("Elo diff", format="%.0f"),
             "Elo_Expected_Home": st.column_config.ProgressColumn(
                 "Elo casa",
@@ -1440,8 +2267,8 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
                 min_value=0.0,
                 max_value=1.0,
             ),
-            "BestBookmaker": "Melhor casa",
-            "BestOdd": st.column_config.NumberColumn("Melhor odd", format="%.2f"),
+            "BestBookmaker": "Casa usada",
+            "BestOdd": st.column_config.NumberColumn("Odd usada", format="%.2f"),
             "ModelProb": st.column_config.ProgressColumn(
                 "Prob. modelo",
                 format="%.2f",
@@ -1536,6 +2363,22 @@ def render_bookmaker_odds(data: pd.DataFrame, odds: pd.DataFrame) -> None:
         return
 
     st.subheader("Odds por casa")
+    requested_bookmakers = sorted(
+        {
+            str(value)
+            for value in data.get("RequestedBookmaker", pd.Series(dtype=str))
+            .dropna()
+            .unique()
+            .tolist()
+            if str(value).strip()
+        }
+    )
+    if requested_bookmakers:
+        st.caption(
+            "Os palpites acima usam: "
+            + ", ".join(requested_bookmakers)
+            + ". A tabela abaixo mostra a comparacao completa da fonte."
+        )
     fixtures = (
         data[["FixtureId", "MatchDatetimeBR", "LigaNome", "HomeTeam", "AwayTeam"]]
         .drop_duplicates()
@@ -1926,6 +2769,7 @@ FEATURE_FAMILY_COLORS = {
     "Finalizacao": "#dc2626",
     "Escanteios": "#7c3aed",
     "Disciplina": "#b45309",
+    "Forca real": "#0e7490",
     "Elo": "#0891b2",
     "Tabela": "#4f46e5",
     "Escalacao": "#be185d",
@@ -1933,15 +2777,201 @@ FEATURE_FAMILY_COLORS = {
     "Descanso": "#0f766e",
     "Outras": "#94a3b8",
 }
+FEATURE_LABEL_EXACT = {
+    "Attack_Diff_Roll5": "Ataque: diferenca recente entre os times",
+    "Away_Away_GF_Roll5": "Visitante fora: gols feitos recentes",
+    "Away_BestVsSelectedGap": "Visitante: melhor odd comparada com a odd usada",
+    "Away_GA_Roll5": "Visitante: gols sofridos recentes",
+    "Away_GF_Roll5": "Visitante: gols feitos recentes",
+    "Away_ImpliedMove": "Visitante: movimento da chance implicita",
+    "Away_MaxAvgGap": "Visitante: melhor odd comparada com a media",
+    "Away_OddsMove": "Visitante: movimento da odd",
+    "Away_TeamStrength": "Forca real do visitante",
+    "ClubElo_DataAvailable": "Tem leitura de forca real dos dois times",
+    "Draw_BestVsSelectedGap": "Empate: melhor odd comparada com a odd usada",
+    "Draw_MaxAvgGap": "Empate: melhor odd comparada com a media",
+    "Draw_OddsMove": "Empate: movimento da odd",
+    "Elo_Diff": "Elo interno: diferenca entre os times",
+    "Elo_Expected_Home": "Elo interno: chance do mandante",
+    "Expected_Total_Goals_Form_Roll5": "Total esperado de gols pela forma recente",
+    "Home_BestVsSelectedGap": "Mandante: melhor odd comparada com a odd usada",
+    "Home_Away_RestDays": "Mandante: descanso fora de casa",
+    "Home_FailedToScore_Roll5": "Mandante: vezes recentes sem marcar",
+    "Home_GA_Roll5": "Mandante: gols sofridos recentes",
+    "Home_GF_Roll5": "Mandante: gols feitos recentes",
+    "Home_Home_GF_Roll5": "Mandante em casa: gols feitos recentes",
+    "Home_ImpliedMove": "Mandante: movimento da chance implicita",
+    "Home_MaxAvgGap": "Mandante: melhor odd comparada com a media",
+    "Home_OddsMove": "Mandante: movimento da odd",
+    "Home_TeamStrength": "Forca real do mandante",
+    "Home_xGFor_Roll5": "Mandante: xG recente",
+    "MatchImportance": "Importancia do jogo",
+    "AH_Line": "Linha asiatica do jogo",
+    "AH_AbsLine": "Forca da linha asiatica",
+    "AH_HomeFavored": "Mandante favorito na linha asiatica",
+    "AH_AwayFavored": "Visitante favorito na linha asiatica",
+    "AH_PickEm": "Jogo equilibrado na linha asiatica",
+    "AH_HomeOdds": "Odd asiatica do mandante",
+    "AH_AwayOdds": "Odd asiatica do visitante",
+    "AH_Overround": "Margem da linha asiatica",
+    "AH_NoVigHomeCover": "Chance limpa do mandante cobrir a linha",
+    "AH_NoVigAwayCover": "Chance limpa do visitante cobrir a linha",
+    "AH_FavoriteCoverProb": "Chance limpa do favorito cobrir a linha",
+    "AH_UnderdogCoverProb": "Chance limpa do zebra cobrir a linha",
+    "AH_HomeStrengthMove": "Movimento da linha a favor do mandante",
+    "AH_AbsLineMove": "Mudanca na forca da linha asiatica",
+    "AH_HomeOddsMove": "Movimento da odd asiatica do mandante",
+    "AH_AwayOddsMove": "Movimento da odd asiatica do visitante",
+    "League_TotalGoals_Pregame": "Media recente de gols da liga",
+    "League_Over25Rate_Pregame": "Taxa recente de over 2.5 da liga",
+    "League_HomeGoals_Pregame": "Media recente de gols do mandante na liga",
+    "League_AwayGoals_Pregame": "Media recente de gols do visitante na liga",
+    "League_FirstHalfGoals_Pregame": "Media recente de gols no 1o tempo da liga",
+    "League_ShotsTotal_Pregame": "Media recente de finalizacoes da liga",
+    "League_xGTotal_Pregame": "Media recente de xG da liga",
+    "League_OddOver25_Pregame": "Odd media recente do over 2.5 na liga",
+    "Home_Attack_vs_League": "Ataque do mandante contra a media da liga",
+    "Away_Attack_vs_League": "Ataque do visitante contra a media da liga",
+    "Expected_Total_vs_League": "Total esperado do jogo contra a media da liga",
+    "Shots_Total_vs_League": "Finalizacoes do jogo contra a media da liga",
+    "FirstHalfGoals_vs_League": "Gols de 1o tempo contra a media da liga",
+    "xG_Total_vs_League": "xG esperado do jogo contra a media da liga",
+    "NoVig_Prob_Away": "Chance do mercado no visitante",
+    "NoVig_Prob_Draw": "Chance do mercado no empate",
+    "NoVig_Prob_Home": "Chance do mercado no mandante",
+    "NoVig_Prob_Over25": "Chance do mercado no over 2.5",
+    "NoVig_Prob_Under25": "Chance do mercado no under 2.5",
+    "Odd_Away": "Odd usada no visitante",
+    "Odd_Draw": "Odd usada no empate",
+    "Odd_Home": "Odd usada no mandante",
+    "Odd_Over25": "Odd usada no over 2.5",
+    "Odd_Under25": "Odd usada no under 2.5",
+    "Odds_Quality_Result": "Qualidade da linha de resultado",
+    "Odds_Quality_Total": "Qualidade da linha de gols",
+    "Over25_MaxAvgGap": "Linha de gols: melhor odd vs media",
+    "Points_Diff_Roll5": "Pontos recentes: diferenca entre os times",
+    "Raw_Implied_Prob_Away": "Chance bruta da odd no visitante",
+    "Raw_Implied_Prob_Draw": "Chance bruta da odd no empate",
+    "Raw_Implied_Prob_Home": "Chance bruta da odd no mandante",
+    "Raw_Implied_Prob_Over25": "Chance bruta da odd no over 2.5",
+    "Raw_Implied_Prob_Under25": "Chance bruta da odd no under 2.5",
+    "RestDays_Diff": "Descanso: diferenca entre os times",
+    "Result_MaxAvgGap": "Linha de resultado: melhor odd vs media",
+    "ShotsOnTarget_Total_Roll5": "Finalizacoes no alvo somadas",
+    "TeamStrength_Diff": "Forca real: diferenca entre os times",
+    "TeamStrength_Expected_Away": "Forca real: chance do visitante",
+    "TeamStrength_Expected_Home": "Forca real: chance do mandante",
+    "TopClash": "Duelo forte entre times do alto da tabela",
+    "Total_Goals_Form_Roll5": "Total de gols recente dos dois times",
+    "Totals_MaxAvgGap": "Linha de gols: dispersao entre casas",
+    "Under25_MaxAvgGap": "Linha de under: melhor odd vs media",
+    "Venue_Attack_Diff_Roll5": "Ataque em casa/fora: diferenca recente",
+    "Venue_Total_Goals_Form_Roll5": "Total de gols em casa/fora",
+    "xG_Expected_Total_Match_Roll5": "xG total esperado para o jogo",
+    "xG_Total_Roll5": "xG recente somado dos dois times",
+}
+FEATURE_TOKEN_LABELS = {
+    "AH": "linha asiatica",
+    "Attack": "ataque",
+    "Avg": "media",
+    "Available": "disponivel",
+    "Away": "visitante",
+    "Best": "melhor odd",
+    "Both": "ambos",
+    "Cards": "cartoes",
+    "Chance": "chance",
+    "CleanSheet": "sem sofrer gol",
+    "Closing": "fechamento",
+    "ClubElo": "forca real",
+    "ConversionRate": "taxa de conversao",
+    "Corners": "escanteios",
+    "Data": "dados",
+    "Defense": "defesa",
+    "Diff": "diferenca",
+    "Discipline": "disciplina",
+    "Draw": "empate",
+    "Evening": "noite",
+    "Expected": "esperado",
+    "ExpectedHome": "chance do mandante",
+    "FailedToScore": "ficou sem marcar",
+    "Family": "grupo",
+    "FirstHalf": "1o tempo",
+    "Fouls": "faltas",
+    "GA": "gols sofridos",
+    "GF": "gols feitos",
+    "GoalDiff": "saldo de gols",
+    "Goals": "gols",
+    "Half": "tempo",
+    "Home": "mandante",
+    "Importance": "importancia",
+    "Implied": "implicita",
+    "IsMidweek": "meio de semana",
+    "IsWeekend": "fim de semana",
+    "Gap": "distancia",
+    "Kickoff": "horario",
+    "League": "liga",
+    "Lineup": "escalacao",
+    "LongRest": "descanso longo",
+    "LossRate": "taxa de derrota",
+    "Match": "jogo",
+    "Matches": "jogos",
+    "MaxAvgGap": "melhor odd vs media",
+    "Missing": "desfalques",
+    "Move": "movimento",
+    "No": "sem",
+    "Odds": "odds",
+    "Over25": "over 2.5",
+    "Points": "pontos",
+    "Pre": "antes do jogo",
+    "PreMatch": "antes do jogo",
+    "Prob": "chance",
+    "Quality": "qualidade",
+    "Raw": "bruta",
+    "Rate": "taxa",
+    "Real": "real",
+    "RedCards": "cartoes vermelhos",
+    "Referee": "arbitro",
+    "RestDays": "dias de descanso",
+    "Result": "resultado",
+    "Roll5": "ultimos 5 jogos",
+    "SeasonProgress": "andar da temporada",
+    "SecondHalf": "2o tempo",
+    "Sheet": "limpo",
+    "ShortRest": "descanso curto",
+    "ShotAccuracy": "precisao nas finalizacoes",
+    "ShotPressure": "pressao de chute",
+    "Shots": "finalizacoes",
+    "SOTAllowedRate": "chutes no alvo cedidos",
+    "Strength": "forca",
+    "Selected": "usada",
+    "Team": "time",
+    "TeamStrength": "forca real",
+    "TitlePressure": "pressao por titulo",
+    "TopClash": "duelo forte",
+    "Total": "total",
+    "Under25": "under 2.5",
+    "Venue": "casa/fora",
+    "Vig": "vig",
+    "Vs": "contra",
+    "WinRate": "taxa de vitoria",
+    "xG": "xG",
+    "YellowCards": "cartoes amarelos",
+}
 
 
 def feature_family(feature: object) -> str:
     """Agrupa uma feature em uma familia legivel."""
     text = str(feature).lower()
+    if text.startswith("ah_"):
+        return "Linha asiatica"
+    if text.startswith("league_") or text.endswith("_vs_league"):
+        return "Contexto da liga"
     if any(token in text for token in ["odd", "implied", "novig", "overround"]):
         return "Odds/Mercado"
     if "xg" in text:
         return "xG"
+    if any(token in text for token in ["teamstrength", "clubelo"]):
+        return "Forca real"
     if "elo" in text:
         return "Elo"
     if any(token in text for token in ["referee", "arbitro"]):
@@ -1977,6 +3007,42 @@ def feature_family(feature: object) -> str:
     return "Outras"
 
 
+def feature_readable_name(feature: object) -> str:
+    """Transforma o nome tecnico da feature em leitura humana."""
+    raw = str(feature).strip()
+    if raw in FEATURE_LABEL_EXACT:
+        return FEATURE_LABEL_EXACT[raw]
+
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", raw)
+    normalized = normalized.replace("Over25", "Over25").replace("Under25", "Under25")
+    tokens = [token for token in normalized.split("_") if token]
+
+    translated: list[str] = []
+    for token in tokens:
+        translated.append(FEATURE_TOKEN_LABELS.get(token, token.lower()))
+
+    text = " - ".join(part for part in translated if part)
+    text = text.replace(" - ultimos 5 jogos", " (ultimos 5 jogos)")
+    text = text.replace(" - antes do jogo", " antes do jogo")
+    text = re.sub(r"\s+", " ", text).strip(" -")
+    if not text:
+        return raw
+    return text[:1].upper() + text[1:]
+
+
+def learning_quality_label(brier_score: float, ece: float) -> str:
+    """Classifica a confianca geral das probabilidades."""
+    if pd.isna(brier_score) or pd.isna(ece):
+        return "Sem leitura"
+    if brier_score <= 0.20 and ece <= 0.03:
+        return "Muito boa"
+    if brier_score <= 0.24 and ece <= 0.05:
+        return "Boa"
+    if brier_score <= 0.28 and ece <= 0.08:
+        return "Regular"
+    return "Pede ajuste"
+
+
 def enrich_feature_importance(data: pd.DataFrame) -> pd.DataFrame:
     """Prepara importancia de features para visualizacao."""
     if data.empty:
@@ -1984,6 +3050,7 @@ def enrich_feature_importance(data: pd.DataFrame) -> pd.DataFrame:
 
     enriched = data.copy()
     enriched["Family"] = enriched["Feature"].map(feature_family)
+    enriched["FeatureLabel"] = enriched["Feature"].map(feature_readable_name)
     enriched["Importance"] = pd.to_numeric(
         enriched["Importance"],
         errors="coerce",
@@ -2007,23 +3074,18 @@ def enrich_feature_importance(data: pd.DataFrame) -> pd.DataFrame:
 def render_learning_overview(
     feature_importance: pd.DataFrame,
     tuning: pd.DataFrame,
+    probability_blend: pd.DataFrame,
     calibration_metrics: pd.DataFrame,
 ) -> None:
-    """Mostra indicadores compactos da pagina de aprendizado."""
-    metric_cols = st.columns(5)
-    markets = (
-        feature_importance["Market"].dropna().nunique()
-        if not feature_importance.empty
-        else 0
-    )
-    feature_count = (
-        feature_importance["Feature"].dropna().nunique()
-        if not feature_importance.empty
-        else 0
-    )
+    """Mostra um resumo visual e facil de ler sobre o aprendizado."""
+    markets = 0
+    feature_count = 0
     top_family = "-"
-    top_family_share = 0.0
+    top_family_share = np.nan
+    top_signal = "-"
     if not feature_importance.empty:
+        markets = feature_importance["Market"].dropna().nunique()
+        feature_count = feature_importance["Feature"].dropna().nunique()
         family_summary = feature_importance.groupby("Family", as_index=False).agg(
             ImportanceShare=("ImportanceShare", "sum")
         )
@@ -2034,45 +3096,118 @@ def render_learning_overview(
         )
         top_family = str(family_summary.iloc[0]["Family"])
         top_family_share = float(family_summary.iloc[0]["ImportanceShare"])
+        top_feature_row = feature_importance.sort_values(
+            "Importance",
+            ascending=False,
+            kind="mergesort",
+        ).iloc[0]
+        top_signal = str(top_feature_row.get("FeatureLabel", top_feature_row["Feature"]))
 
     best_logloss = np.nan
     if not tuning.empty and "ValidationLogLoss" in tuning.columns:
-        best_logloss = float(pd.to_numeric(
-            tuning["ValidationLogLoss"],
-            errors="coerce",
-        ).min())
+        best_logloss = float(
+            pd.to_numeric(
+                tuning["ValidationLogLoss"],
+                errors="coerce",
+            ).min()
+        )
 
-    best_brier = np.nan
-    avg_ece = np.nan
+    weighted_brier = np.nan
+    weighted_ece = np.nan
     if not calibration_metrics.empty:
-        if "BrierScore" in calibration_metrics.columns:
-            best_brier = float(pd.to_numeric(
+        weighted_brier = float(
+            np.average(
                 calibration_metrics["BrierScore"],
-                errors="coerce",
-            ).min())
-        if "ECE" in calibration_metrics.columns:
-            avg_ece = float(pd.to_numeric(
+                weights=calibration_metrics["Rows"],
+            )
+        )
+        weighted_ece = float(
+            np.average(
                 calibration_metrics["ECE"],
-                errors="coerce",
-            ).mean())
+                weights=calibration_metrics["Rows"],
+            )
+        )
 
-    metric_cols[0].metric("Mercados modelados", f"{markets:.0f}")
-    metric_cols[1].metric("Features distintas", f"{feature_count:.0f}")
-    metric_cols[2].metric("Familia dominante", top_family)
-    metric_cols[3].metric(
-        "Melhor LogLoss",
-        "-" if pd.isna(best_logloss) else f"{best_logloss:.4f}",
-        help=f"Familia dominante soma {top_family_share:.1%} da importancia.",
+    blend_gain = np.nan
+    blend_alpha = np.nan
+    if not probability_blend.empty:
+        blend = enrich_probability_blend(probability_blend)
+        best_rows = blend[blend["IsBest"]].copy()
+        if best_rows.empty:
+            best_rows = (
+                blend.sort_values(
+                    ["Market", "ValidationLogLoss"],
+                    ascending=[True, True],
+                    kind="mergesort",
+                )
+                .groupby("Market", as_index=False)
+                .head(1)
+            )
+        if not best_rows.empty:
+            blend_gain = float(best_rows["ImprovementVsModel"].mean())
+            blend_alpha = float(best_rows["AlphaModel"].mean())
+
+    st.subheader("Leitura rapida")
+    st.caption(
+        "Aqui a ideia e responder tres perguntas sem jargao: no que o modelo "
+        "mais olha, se as chances que ele calcula fazem sentido e quanto o "
+        "mercado ajuda."
     )
-    metric_cols[4].metric(
-        "Brier / ECE",
-        "-" if pd.isna(best_brier) else f"{best_brier:.4f}",
-        delta=None if pd.isna(avg_ece) else f"ECE medio {avg_ece:.2%}",
-        help=(
-            "Brier menor indica probabilidade mais precisa; ECE menor indica "
-            "melhor calibracao por faixas."
-        ),
-    )
+    card_cols = st.columns(4)
+
+    with card_cols[0]:
+        with st.container(border=True):
+            st.metric("Mercados e sinais", f"{markets:.0f} mercados")
+            st.caption(
+                f"{feature_count:.0f} sinais diferentes acompanhados."
+            )
+
+    with card_cols[1]:
+        with st.container(border=True):
+            st.metric(
+                "O que mais pesa",
+                top_family,
+                delta=None if pd.isna(top_family_share) else format_pct(top_family_share),
+            )
+            st.caption(f"Sinal mais forte: {top_signal}")
+
+    with card_cols[2]:
+        with st.container(border=True):
+            st.metric(
+                "Confianca das chances",
+                learning_quality_label(weighted_brier, weighted_ece),
+            )
+            chance_text = (
+                "Sem leitura"
+                if pd.isna(weighted_brier)
+                else f"Precisao {weighted_brier:.3f} | equilibrio {weighted_ece:.1%}"
+            )
+            st.caption(chance_text)
+
+    with card_cols[3]:
+        with st.container(border=True):
+            blend_title = "Mercado ajuda?"
+            blend_value = (
+                "Sem leitura"
+                if pd.isna(blend_gain)
+                else ("Ajuda" if blend_gain > 0 else "Quase nada")
+            )
+            st.metric(blend_title, blend_value)
+            blend_text = (
+                "Sem comparacao suficiente."
+                if pd.isna(blend_gain)
+                else (
+                    f"Peso medio do modelo: {format_pct(blend_alpha)} | "
+                    f"ganho medio: {blend_gain:.4f}"
+                )
+            )
+            st.caption(blend_text)
+
+    if not pd.isna(best_logloss):
+        st.caption(
+            "Menor erro visto nos testes automáticos: "
+            f"{best_logloss:.4f}. Menor e melhor."
+        )
 
 
 def render_feature_learning(feature_importance: pd.DataFrame) -> None:
@@ -2080,6 +3215,11 @@ def render_feature_learning(feature_importance: pd.DataFrame) -> None:
     if feature_importance.empty:
         st.info("Importancia de features ainda nao foi gerada.")
         return
+
+    st.caption(
+        "Estas barras mostram quais sinais mais mexem na decisao do modelo. "
+        "Quanto maior a barra, mais o modelo olha para esse ponto."
+    )
 
     markets = sorted(feature_importance["Market"].dropna().unique().tolist())
     left, right, spacer = st.columns((1.5, 1.0, 1.2))
@@ -2140,23 +3280,24 @@ def render_feature_learning(feature_importance: pd.DataFrame) -> None:
         fig = px.bar(
             top_features.sort_values("Importance", ascending=True),
             x="Importance",
-            y="Feature",
+            y="FeatureLabel",
             orientation="h",
             color="Family",
             color_discrete_map=FEATURE_FAMILY_COLORS,
             hover_data={
+                "Feature": True,
                 "ImportanceShare": ":.2%",
                 "CumulativeShare": ":.2%",
                 "Rank": ":.0f",
             },
             labels={
-                "Importance": "Importancia",
-                "Feature": "Feature",
-                "Family": "Familia",
+                "Importance": "Peso",
+                "FeatureLabel": "Sinal",
+                "Family": "Grupo",
                 "ImportanceShare": "Participacao",
                 "CumulativeShare": "Acumulado",
             },
-            title="Top sinais usados pelo modelo",
+            title="Sinais que mais pesam",
         )
         fig.update_layout(
             height=max(420, 26 * len(top_features)),
@@ -2181,7 +3322,7 @@ def render_feature_learning(feature_importance: pd.DataFrame) -> None:
                 "ImportanceShare": "Participacao",
                 "Family": "Familia",
             },
-            title="Peso por familia",
+            title="Grupos que mais pesam",
         )
         fig.update_layout(
             height=420,
@@ -2195,7 +3336,7 @@ def render_feature_learning(feature_importance: pd.DataFrame) -> None:
             top_features[
                 [
                     "Rank",
-                    "Feature",
+                    "FeatureLabel",
                     "Family",
                     "Importance",
                     "ImportanceShare",
@@ -2207,10 +3348,10 @@ def render_feature_learning(feature_importance: pd.DataFrame) -> None:
         hide_index=True,
         column_config={
             "Rank": st.column_config.NumberColumn("#", format="%.0f"),
-            "Feature": "Feature",
-            "Family": "Familia",
+            "FeatureLabel": "Sinal",
+            "Family": "Grupo",
             "Importance": st.column_config.ProgressColumn(
-                "Importancia",
+                "Peso",
                 format="%.4f",
                 min_value=0.0,
                 max_value=float(top_features["Importance"].max()),
@@ -2232,6 +3373,11 @@ def render_tuning_learning(tuning: pd.DataFrame) -> None:
     if tuning.empty:
         st.info("Tuning XGBoost ainda nao foi gerado.")
         return
+
+    st.caption(
+        "Aqui o app testa varias regulagens do motor e guarda a que erra menos "
+        "fora da amostra. Menor erro e melhor."
+    )
 
     tuning_table = tuning.copy()
     tuning_table["ValidationLogLoss"] = pd.to_numeric(
@@ -2255,10 +3401,10 @@ def render_tuning_learning(tuning: pd.DataFrame) -> None:
             markers=True,
             labels={
                 "Trial": "Tentativa",
-                "ValidationLogLoss": "LogLoss validacao",
+                "ValidationLogLoss": "Erro fora da amostra",
                 "Market": "Mercado",
             },
-            title="Evolucao do LogLoss por tentativa",
+            title="Como cada tentativa se saiu",
         )
         fig.update_layout(height=420, margin=dict(l=10, r=10, t=55, b=10))
         st.plotly_chart(fig, width="stretch")
@@ -2271,10 +3417,10 @@ def render_tuning_learning(tuning: pd.DataFrame) -> None:
             orientation="h",
             color="Market",
             labels={
-                "ValidationLogLoss": "Melhor LogLoss",
+                "ValidationLogLoss": "Menor erro",
                 "Market": "Mercado",
             },
-            title="Melhor configuracao por mercado",
+            title="Melhor regulagem por mercado",
         )
         fig.update_layout(
             height=420,
@@ -2307,27 +3453,36 @@ def render_tuning_learning(tuning: pd.DataFrame) -> None:
             "Market": "Mercado",
             "Trial": st.column_config.NumberColumn("Tentativa", format="%.0f"),
             "ValidationLogLoss": st.column_config.NumberColumn(
-                "LogLoss val.",
+                "Erro final",
                 format="%.4f",
             ),
-            "n_estimators": st.column_config.NumberColumn("Arvores", format="%.0f"),
-            "learning_rate": st.column_config.NumberColumn("LR", format="%.3f"),
-            "max_depth": st.column_config.NumberColumn("Depth", format="%.0f"),
-            "subsample": st.column_config.NumberColumn("Subsample", format="%.2f"),
+            "n_estimators": st.column_config.NumberColumn(
+                "Qtd. arvores",
+                format="%.0f",
+            ),
+            "learning_rate": st.column_config.NumberColumn(
+                "Passo",
+                format="%.3f",
+            ),
+            "max_depth": st.column_config.NumberColumn(
+                "Profundidade",
+                format="%.0f",
+            ),
+            "subsample": st.column_config.NumberColumn("Amostra", format="%.2f"),
             "colsample_bytree": st.column_config.NumberColumn(
-                "Colsample",
+                "Colunas",
                 format="%.2f",
             ),
             "min_child_weight": st.column_config.NumberColumn(
-                "Min child",
+                "Min. base",
                 format="%.1f",
             ),
-            "reg_lambda": st.column_config.NumberColumn("L2", format="%.2f"),
-            "reg_alpha": st.column_config.NumberColumn("L1", format="%.2f"),
+            "reg_lambda": st.column_config.NumberColumn("Freio L2", format="%.2f"),
+            "reg_alpha": st.column_config.NumberColumn("Freio L1", format="%.2f"),
         },
     )
 
-    with st.expander("Ver todas as tentativas"):
+    with st.expander("Ver todas as regulagens"):
         st.dataframe(tuning_table, width="stretch", hide_index=True)
 
 
@@ -2391,6 +3546,11 @@ def render_calibration_learning(
     if calibration_curve.empty and calibration_metrics.empty:
         st.info("Rode o pipeline novamente para gerar curvas de calibracao.")
         return
+
+    st.caption(
+        "A pergunta aqui e simples: quando o modelo diz 60%, isso vira algo "
+        "perto de 60% na vida real?"
+    )
 
     curve = enrich_calibration_curve(calibration_curve)
     metrics = enrich_calibration_metrics(calibration_metrics)
@@ -2456,10 +3616,10 @@ def render_calibration_learning(
     max_gap = float(market_metrics["MaxAbsGap"].max())
 
     metric_cols = st.columns(4)
-    metric_cols[0].metric("Brier Score", f"{weighted_brier:.4f}")
-    metric_cols[1].metric("ECE", format_pct(weighted_ece))
-    metric_cols[2].metric("Vies medio", format_pct(mean_bias))
-    metric_cols[3].metric("Maior gap", format_pct(max_gap))
+    metric_cols[0].metric("Precisao das chances", f"{weighted_brier:.4f}")
+    metric_cols[1].metric("Equilibrio", format_pct(weighted_ece))
+    metric_cols[2].metric("Tendencia media", format_pct(mean_bias))
+    metric_cols[3].metric("Maior desvio", format_pct(max_gap))
     st.caption(f"Amostra avaliada: {total_rows:,.0f} probabilidades por evento.")
 
     if market_curve.empty:
@@ -2484,11 +3644,11 @@ def render_calibration_learning(
                 "CalibrationGap": ":.2%",
             },
             labels={
-                "Probabilidade": "Probabilidade prevista",
-                "FrequenciaReal": "Frequencia real",
+                "Probabilidade": "Chance dita pelo modelo",
+                "FrequenciaReal": "O que aconteceu",
                 "Outcome": "Evento",
             },
-            title="Curva de calibracao",
+            title="Chance dita x chance real",
         )
         fig.add_trace(
             go.Scatter(
@@ -2512,11 +3672,11 @@ def render_calibration_learning(
             color="Outcome",
             hover_data={"Count": ":.0f", "AbsCalibrationGap": ":.2%"},
             labels={
-                "Faixa": "Faixa prevista",
+                "Faixa": "Faixa de chance",
                 "CalibrationGap": "Real - previsto",
                 "Outcome": "Evento",
             },
-            title="Gap por faixa",
+            title="Desvio por faixa",
         )
         fig.update_yaxes(tickformat=".0%")
         fig.update_layout(height=460, margin=dict(l=10, r=10, t=55, b=10))
@@ -2544,18 +3704,18 @@ def render_calibration_learning(
             "Outcome": "Evento",
             "Rows": st.column_config.NumberColumn("Amostras", format="%.0f"),
             "MeanPredictedProb": st.column_config.NumberColumn(
-                "Prob. media",
+                "Chance media dita",
                 format="%.2%",
             ),
             "ObservedRate": st.column_config.NumberColumn(
-                "Freq. real",
+                "O que aconteceu",
                 format="%.2%",
             ),
-            "BrierScore": st.column_config.NumberColumn("Brier", format="%.4f"),
-            "ECE": st.column_config.NumberColumn("ECE", format="%.2%"),
-            "MaxAbsGap": st.column_config.NumberColumn("Max gap", format="%.2%"),
+            "BrierScore": st.column_config.NumberColumn("Precisao", format="%.4f"),
+            "ECE": st.column_config.NumberColumn("Equilibrio", format="%.2%"),
+            "MaxAbsGap": st.column_config.NumberColumn("Maior desvio", format="%.2%"),
             "CalibrationBias": st.column_config.NumberColumn(
-                "Vies",
+                "Tendencia",
                 format="%.2%",
             ),
         },
@@ -2593,6 +3753,11 @@ def render_probability_blend_learning(probability_blend: pd.DataFrame) -> None:
         st.info("Rode o pipeline novamente para gerar o blend modelo x mercado.")
         return
 
+    st.caption(
+        "Aqui a gente mede quando vale confiar mais no modelo puro e quando "
+        "vale ouvir mais o mercado."
+    )
+
     blend = enrich_probability_blend(probability_blend)
     markets = sorted(blend["Market"].dropna().unique().tolist())
     selected_markets = st.multiselect(
@@ -2624,15 +3789,15 @@ def render_probability_blend_learning(probability_blend: pd.DataFrame) -> None:
     cols = st.columns(4)
     cols[0].metric("Mercados com blend", f"{best['Market'].nunique():.0f}")
     cols[1].metric(
-        "Peso medio do modelo",
+        "Quanto o modelo pesa",
         "-" if pd.isna(avg_alpha) else format_pct(avg_alpha),
     )
     cols[2].metric(
-        "Ganho medio vs modelo",
+        "Ganho medio",
         "-" if pd.isna(avg_gain) else f"{avg_gain:.4f}",
     )
     cols[3].metric(
-        "Melhor LogLoss blend",
+        "Menor erro final",
         f"{best['ValidationLogLoss'].min():.4f}",
     )
 
@@ -2650,11 +3815,11 @@ def render_probability_blend_learning(probability_blend: pd.DataFrame) -> None:
                 "ImprovementVsMarket": ":.4f",
             },
             labels={
-                "AlphaModel": "Peso do modelo",
-                "ValidationLogLoss": "LogLoss validacao",
+                "AlphaModel": "Peso dado ao modelo",
+                "ValidationLogLoss": "Erro fora da amostra",
                 "Market": "Mercado",
             },
-            title="Busca do melhor peso modelo x mercado",
+            title="Quanto ouvir o modelo e o mercado",
         )
         fig.update_xaxes(tickformat=".0%")
         fig.update_layout(height=430, margin=dict(l=10, r=10, t=55, b=10))
@@ -2677,13 +3842,13 @@ def render_probability_blend_learning(probability_blend: pd.DataFrame) -> None:
             color="Fonte",
             barmode="stack",
             labels={"Market": "Mercado", "Peso": "Peso"},
-            title="Peso escolhido na validacao",
+            title="Peso final escolhido",
         )
         fig.update_yaxes(tickformat=".0%")
         fig.update_layout(height=430, margin=dict(l=10, r=10, t=55, b=10))
         st.plotly_chart(fig, width="stretch")
 
-    st.subheader("Melhor blend por mercado")
+    st.subheader("Leitura por mercado")
     st.dataframe(
         style_dashboard_table(
             best[
@@ -2704,31 +3869,31 @@ def render_probability_blend_learning(probability_blend: pd.DataFrame) -> None:
         column_config={
             "Market": "Mercado",
             "AlphaModel": st.column_config.NumberColumn(
-                "Peso modelo",
+                "Peso do modelo",
                 format="%.2%",
             ),
             "AlphaMarket": st.column_config.NumberColumn(
-                "Peso mercado",
+                "Peso do mercado",
                 format="%.2%",
             ),
             "ValidationLogLoss": st.column_config.NumberColumn(
-                "LogLoss blend",
+                "Erro final",
                 format="%.4f",
             ),
             "ModelLogLoss": st.column_config.NumberColumn(
-                "LogLoss modelo",
+                "Erro do modelo",
                 format="%.4f",
             ),
             "MarketLogLoss": st.column_config.NumberColumn(
-                "LogLoss mercado",
+                "Erro do mercado",
                 format="%.4f",
             ),
             "ImprovementVsModel": st.column_config.NumberColumn(
-                "Ganho vs modelo",
+                "Melhora vs modelo",
                 format="%.4f",
             ),
             "ImprovementVsMarket": st.column_config.NumberColumn(
-                "Ganho vs mercado",
+                "Melhora vs mercado",
                 format="%.4f",
             ),
         },
@@ -2737,9 +3902,10 @@ def render_probability_blend_learning(probability_blend: pd.DataFrame) -> None:
 
 def render_ml_learning_page() -> None:
     """Renderiza diagnosticos de aprendizado do modelo."""
-    st.title("Apostasbot | Aprendizado ML")
+    st.title("Apostasbot | Como o modelo aprende")
     st.caption(
-        "Leitura visual de sinais, familias de features, tuning e calibracao."
+        "Uma leitura mais visual e simples do que pesa no modelo, se as "
+        "chances fazem sentido e quando o mercado ajuda."
     )
     render_pipeline_runner()
 
@@ -2762,34 +3928,39 @@ def render_ml_learning_page() -> None:
 
     feature_importance = enrich_feature_importance(feature_importance)
     calibration_metrics = enrich_calibration_metrics(calibration_metrics)
-    render_learning_overview(feature_importance, tuning, calibration_metrics)
+    render_learning_overview(
+        feature_importance,
+        tuning,
+        probability_blend,
+        calibration_metrics,
+    )
     st.divider()
 
     tabs = st.tabs(
         [
-            "Sinais do modelo",
-            "Blend mercado",
-            "Calibracao",
-            "Tuning",
-            "Dados brutos",
+            "O que o modelo observa",
+            "Chance x realidade",
+            "Modelo x mercado",
+            "Ajustes do motor",
+            "Tabelas completas",
         ]
     )
     with tabs[0]:
         render_feature_learning(feature_importance)
     with tabs[1]:
-        render_probability_blend_learning(probability_blend)
-    with tabs[2]:
         render_calibration_learning(calibration_curve, calibration_metrics)
+    with tabs[2]:
+        render_probability_blend_learning(probability_blend)
     with tabs[3]:
         render_tuning_learning(tuning)
     with tabs[4]:
         raw_tabs = st.tabs(
             [
-                "Importancia",
-                "Tuning",
-                "Blend mercado",
-                "Curvas calibracao",
-                "Metricas calibracao",
+                "Sinais",
+                "Ajustes",
+                "Modelo x mercado",
+                "Curvas",
+                "Metricas",
             ]
         )
         with raw_tabs[0]:
@@ -3506,12 +4677,24 @@ def render_realistic_backtest_page() -> None:
 def render_upcoming_page() -> None:
     """Renderiza a pagina de palpites futuros."""
     st.title("Apostasbot | Palpites futuros +EV")
-    st.caption("Jogos futuros, probabilidades do modelo e odds por casa.")
+    st.caption("Jogos futuros, probabilidades do modelo e odds da casa usada.")
     render_upcoming_runner()
 
-    predictions, odds = load_upcoming_data()
+    predictions, odds, context = load_upcoming_data()
+    if not context.empty:
+        summary = context.iloc[0]
+        requested = str(summary.get("RequestedBookmaker", "Melhor disponivel"))
+        message = str(summary.get("Message", "")).strip()
+        if message:
+            if bool(summary.get("UsesPreferredBookmaker", False)):
+                st.info(f"Casa usada nos palpites: {requested}. {message}")
+            else:
+                st.info(message)
     if predictions.empty:
-        st.info("Gere os palpites futuros pelo painel lateral para criar os CSVs.")
+        if context.empty:
+            st.info("Gere os palpites futuros pelo painel lateral para criar os CSVs.")
+        else:
+            st.warning("Nenhum palpite disponivel com a casa escolhida no momento.")
         return
 
     st.sidebar.header("Regra +EV")
@@ -3642,26 +4825,29 @@ def render_backtests_page() -> None:
 def main() -> None:
     """Renderiza o dashboard."""
     page = st.sidebar.radio(
-        "Pagina",
+        "Tela",
         options=[
-            "Backtests",
+            "Testes historicos",
             "Palpites futuros",
-            "Comparacao modelos",
-            "Otimizacao filtros",
-            "Backtest realista",
-            "Aprendizado ML",
+            "Comparar modelos",
+            "Melhores filtros",
+            "Onde funciona melhor",
+            "Teste realista",
+            "Aprendizado do modelo",
         ],
         horizontal=False,
     )
     if page == "Palpites futuros":
         render_upcoming_page()
-    elif page == "Comparacao modelos":
+    elif page == "Comparar modelos":
         render_model_comparison_page()
-    elif page == "Otimizacao filtros":
+    elif page == "Melhores filtros":
         render_filter_optimization_page()
-    elif page == "Backtest realista":
+    elif page == "Onde funciona melhor":
+        render_model_strength_page()
+    elif page == "Teste realista":
         render_realistic_backtest_page()
-    elif page == "Aprendizado ML":
+    elif page == "Aprendizado do modelo":
         render_ml_learning_page()
     else:
         render_backtests_page()

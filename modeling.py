@@ -115,6 +115,7 @@ def train_xgboost_model(
     x_train: pd.DataFrame,
     y_train: pd.Series,
     params: dict[str, float | int] | None = None,
+    sample_weight: np.ndarray | pd.Series | None = None,
 ):
     """Instancia e treina um XGBClassifier."""
     try:
@@ -126,8 +127,89 @@ def train_xgboost_model(
         ) from exc
 
     model = XGBClassifier(**build_xgboost_params(y_train, params))
-    model.fit(x_train, y_train)
+    model.fit(x_train, y_train, sample_weight=sample_weight)
     return model
+
+
+def build_time_decay_sample_weights(
+    dates: pd.Series,
+    half_life_days: float,
+    min_weight: float,
+) -> np.ndarray:
+    """Calcula pesos temporais normalizados, favorecendo partidas recentes."""
+    if half_life_days <= 0:
+        raise ValueError("half_life_days deve ser positivo.")
+    if not 0.0 < min_weight <= 1.0:
+        raise ValueError("min_weight deve estar entre 0 e 1.")
+
+    parsed_dates = pd.to_datetime(dates, errors="coerce")
+    if parsed_dates.isna().all():
+        return np.ones(len(parsed_dates), dtype=float)
+
+    latest_date = parsed_dates.max()
+    age_days = (latest_date - parsed_dates).dt.total_seconds().div(86_400)
+    age_days = age_days.fillna(age_days.max()).clip(lower=0.0)
+    weights = np.power(0.5, age_days.to_numpy(dtype=float) / half_life_days)
+    weights = np.clip(weights, min_weight, 1.0)
+    mean_weight = float(weights.mean())
+    if mean_weight > 0:
+        weights = weights / mean_weight
+    return weights.astype(float)
+
+
+def summarize_sample_weights(
+    dates: pd.Series,
+    sample_weight: np.ndarray | pd.Series | None,
+    market: str,
+    half_life_days: float,
+    min_weight: float,
+) -> pd.DataFrame:
+    """Cria resumo audivel dos pesos temporais usados no treino."""
+    if sample_weight is None:
+        return pd.DataFrame()
+
+    parsed_dates = pd.to_datetime(dates, errors="coerce")
+    weights = np.asarray(sample_weight, dtype=float)
+    if len(weights) == 0:
+        return pd.DataFrame()
+
+    return pd.DataFrame(
+        [
+            {
+                "Market": market,
+                "TrainRows": len(weights),
+                "TrainStart": parsed_dates.min().date().isoformat(),
+                "TrainEnd": parsed_dates.max().date().isoformat(),
+                "HalfLifeDays": half_life_days,
+                "MinRawWeight": min_weight,
+                "WeightMin": float(np.min(weights)),
+                "WeightP25": float(np.quantile(weights, 0.25)),
+                "WeightMedian": float(np.median(weights)),
+                "WeightP75": float(np.quantile(weights, 0.75)),
+                "WeightMax": float(np.max(weights)),
+                "WeightMean": float(np.mean(weights)),
+                "RecentToOldestRatio": float(np.max(weights) / np.min(weights))
+                if np.min(weights) > 0
+                else np.nan,
+            }
+        ]
+    )
+
+
+def _sample_weight_values(
+    sample_weight: np.ndarray | pd.Series | None,
+    expected_length: int,
+) -> np.ndarray | None:
+    """Valida e converte pesos amostrais em vetor numpy."""
+    if sample_weight is None:
+        return None
+
+    values = np.asarray(sample_weight, dtype=float)
+    if len(values) != expected_length:
+        raise ValueError(
+            "sample_weight deve ter o mesmo tamanho de x_train/y_train."
+        )
+    return values
 
 
 def temporal_train_validation_split(
@@ -155,6 +237,7 @@ def tune_xgboost_hyperparameters(
     y_train: pd.Series,
     max_trials: int,
     validation_size: float,
+    sample_weight: np.ndarray | pd.Series | None = None,
 ) -> tuple[dict[str, float | int], pd.DataFrame]:
     """Escolhe hiperparametros por LogLoss em uma janela temporal."""
     if max_trials <= 0:
@@ -175,6 +258,13 @@ def tune_xgboost_hyperparameters(
         print("[tuning] Ignorado: treino interno nao contem todas as classes.")
         return {}, pd.DataFrame()
 
+    sample_weight_values = _sample_weight_values(sample_weight, len(x_train))
+    fit_weights = (
+        sample_weight_values[: len(x_fit)]
+        if sample_weight_values is not None
+        else None
+    )
+
     trials = XGB_TUNING_GRID[: max(1, min(max_trials, len(XGB_TUNING_GRID)))]
     trial_rows: list[dict[str, float | int | str]] = []
     best_score = np.inf
@@ -185,7 +275,12 @@ def tune_xgboost_hyperparameters(
         f"{len(trials)} tentativas, validacao temporal {len(x_validation):,} jogos"
     )
     for trial_number, params in enumerate(trials, start=1):
-        model = train_xgboost_model(x_fit, y_fit, params)
+        model = train_xgboost_model(
+            x_fit,
+            y_fit,
+            params,
+            sample_weight=fit_weights,
+        )
         probabilities = model.predict_proba(x_validation)
         score = log_loss(
             y_validation,
@@ -195,6 +290,7 @@ def tune_xgboost_hyperparameters(
         row = {
             "Trial": trial_number,
             "ValidationLogLoss": score,
+            "UsesSampleWeight": sample_weight_values is not None,
             **build_xgboost_params(y_train, params),
         }
         trial_rows.append(row)
@@ -242,6 +338,7 @@ def calibrate_prefit_model(
     x_calibration: pd.DataFrame,
     y_calibration: pd.Series,
     method: str,
+    sample_weight: np.ndarray | pd.Series | None = None,
 ):
     """Calibra um modelo ja treinado, com compatibilidade entre sklearns."""
     try:
@@ -258,7 +355,17 @@ def calibrate_prefit_model(
             cv="prefit",
         )
 
-    calibrator.fit(x_calibration, y_calibration)
+    if sample_weight is None:
+        calibrator.fit(x_calibration, y_calibration)
+    else:
+        try:
+            calibrator.fit(
+                x_calibration,
+                y_calibration,
+                sample_weight=sample_weight,
+            )
+        except TypeError:
+            calibrator.fit(x_calibration, y_calibration)
     return calibrator
 
 
@@ -269,14 +376,21 @@ def train_calibrated_xgboost_model(
     calibration_method: str,
     xgb_tuning_trials: int = 0,
     xgb_tuning_validation_size: float = 0.20,
+    sample_weight: np.ndarray | pd.Series | None = None,
 ):
     """Treina XGBoost e calibra probabilidades em janela temporal posterior."""
+    sample_weight_values = _sample_weight_values(sample_weight, len(x_train))
     (
         x_model_train,
         x_calibration,
         y_model_train,
         y_calibration,
     ) = temporal_train_calibration_split(x_train, y_train, calibration_size)
+    model_train_weights = (
+        sample_weight_values[: len(x_model_train)]
+        if sample_weight_values is not None
+        else None
+    )
 
     print(
         "[modelo] Treino base/calibracao: "
@@ -288,8 +402,14 @@ def train_calibrated_xgboost_model(
         y_model_train,
         max_trials=xgb_tuning_trials,
         validation_size=xgb_tuning_validation_size,
+        sample_weight=model_train_weights,
     )
-    base_model = train_xgboost_model(x_model_train, y_model_train, best_params)
+    base_model = train_xgboost_model(
+        x_model_train,
+        y_model_train,
+        best_params,
+        sample_weight=model_train_weights,
+    )
     calibrated_model = calibrate_prefit_model(
         base_model,
         x_calibration,
@@ -302,6 +422,7 @@ def train_calibrated_xgboost_model(
     )
     calibrated_model.xgb_tuning_summary_ = tuning_summary
     calibrated_model.feature_names_ = list(x_train.columns)
+    calibrated_model.uses_sample_weight_ = sample_weight_values is not None
     calibrated_model.base_feature_importances_ = getattr(
         base_model,
         "feature_importances_",

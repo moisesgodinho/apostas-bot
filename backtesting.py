@@ -26,9 +26,12 @@ from config import (
 )
 from data_pipeline import add_no_vig_market_probabilities
 from modeling import (
+    blend_probabilities,
+    build_time_decay_sample_weights,
     evaluate_match_result_model,
     evaluate_model,
     train_calibrated_xgboost_model,
+    tune_probability_blend,
 )
 
 
@@ -491,59 +494,285 @@ def print_win_results(
     print(f"Odd media das apostas:    {backtest_summary['avg_odd']:.2f}")
 
 
-def run_walk_forward_validation(
+def _has_required_classes(
+    target: pd.Series,
+    required_classes: Sequence[int],
+) -> bool:
+    """Verifica se uma janela contem as classes necessarias."""
+    available = set(pd.Series(target).dropna().astype(int).unique().tolist())
+    return set(required_classes).issubset(available)
+
+
+def _build_walk_forward_date_folds(
     data: pd.DataFrame,
-    feature_cols: Sequence[str],
     config: PipelineConfig,
-    initial_train_fraction: float = 0.50,
-) -> pd.DataFrame:
-    """Executa validacao walk-forward com janelas expansivas."""
+    initial_train_fraction: float,
+) -> list[tuple[int, pd.DataFrame, pd.DataFrame]]:
+    """Cria folds expansivos por blocos de datas, sem misturar o mesmo dia."""
     if config.walk_forward_splits <= 0:
-        return pd.DataFrame()
+        return []
 
     if not 0.2 <= initial_train_fraction < 1.0:
         raise ValueError("initial_train_fraction deve estar entre 0.2 e 1.")
 
-    data = data.sort_values("MatchDatetime", kind="mergesort").reset_index(drop=True)
-    initial_train_size = int(len(data) * initial_train_fraction)
-    remaining_size = len(data) - initial_train_size
-    test_size = remaining_size // config.walk_forward_splits
+    ordered = data.sort_values("MatchDatetime", kind="mergesort").reset_index(
+        drop=True
+    )
+    ordered["_WalkForwardDate"] = pd.to_datetime(
+        ordered["MatchDatetime"],
+        errors="coerce",
+    ).dt.normalize()
+    ordered = ordered.dropna(subset=["_WalkForwardDate"]).copy()
+    unique_dates = np.array(sorted(ordered["_WalkForwardDate"].unique()))
+    initial_date_count = int(len(unique_dates) * initial_train_fraction)
 
-    if initial_train_size <= 0 or test_size <= 0:
-        raise ValueError("Dados insuficientes para walk-forward validation.")
+    if initial_date_count <= 0 or initial_date_count >= len(unique_dates):
+        raise ValueError("Datas insuficientes para walk-forward validation.")
 
-    fold_rows: list[dict[str, float | int | str]] = []
-    print("\n========== WALK-FORWARD VALIDATION ==========")
+    remaining_dates = unique_dates[initial_date_count:]
+    date_blocks = [
+        block for block in np.array_split(remaining_dates, config.walk_forward_splits)
+        if len(block)
+    ]
+    folds: list[tuple[int, pd.DataFrame, pd.DataFrame]] = []
 
-    for fold in range(1, config.walk_forward_splits + 1):
-        train_end = initial_train_size + ((fold - 1) * test_size)
-        test_end = (
-            initial_train_size + (fold * test_size)
-            if fold < config.walk_forward_splits
-            else len(data)
+    for fold, block in enumerate(date_blocks, start=1):
+        test_start = pd.Timestamp(block[0])
+        test_end = pd.Timestamp(block[-1])
+        train_mask = ordered["_WalkForwardDate"] < test_start
+        test_mask = (
+            ordered["_WalkForwardDate"].ge(test_start)
+            & ordered["_WalkForwardDate"].le(test_end)
         )
+        train_data = ordered.loc[train_mask].drop(columns="_WalkForwardDate").copy()
+        test_data = ordered.loc[test_mask].drop(columns="_WalkForwardDate").copy()
 
-        train_data = data.iloc[:train_end].copy()
-        test_data = data.iloc[train_end:test_end].copy()
-        x_train = train_data.loc[:, feature_cols]
-        y_train = train_data[TARGET_COL]
-        x_test = test_data.loc[:, feature_cols]
-        y_test = test_data[TARGET_COL]
+        if len(test_data) < config.walk_forward_min_test_rows:
+            print(
+                "[walk-forward] Fold ignorado por baixo volume: "
+                f"{fold} ({len(test_data):,} jogos)"
+            )
+            continue
+        if train_data.empty or test_data.empty:
+            continue
 
+        folds.append((fold, train_data, test_data))
+
+    if not folds:
+        raise ValueError("Nenhum fold walk-forward valido foi criado.")
+
+    return folds
+
+
+def _split_walk_forward_model_train(
+    train_data: pd.DataFrame,
+    target_col: str,
+    config: PipelineConfig,
+    required_classes: Sequence[int],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Separa treino do fold e uma validacao interna para blend."""
+    split_index = int(len(train_data) * (1.0 - config.calibration_size))
+    if split_index <= 0 or split_index >= len(train_data):
+        return train_data.copy(), pd.DataFrame()
+
+    model_train = train_data.iloc[:split_index].copy()
+    blend_validation = train_data.iloc[split_index:].copy()
+    if not _has_required_classes(model_train[target_col], required_classes):
+        return train_data.copy(), pd.DataFrame()
+    if not _has_required_classes(blend_validation[target_col], required_classes):
+        return train_data.copy(), pd.DataFrame()
+    return model_train, blend_validation
+
+
+def _walk_forward_sample_weights(
+    train_data: pd.DataFrame,
+    config: PipelineConfig,
+) -> np.ndarray | None:
+    """Calcula pesos temporais para o treino de um fold."""
+    if not config.use_time_decay_weights:
+        return None
+    return build_time_decay_sample_weights(
+        train_data["MatchDatetime"],
+        half_life_days=config.time_decay_half_life_days,
+        min_weight=config.min_time_decay_weight,
+    )
+
+
+def _market_probability_values(
+    data: pd.DataFrame,
+    columns: str | Sequence[str],
+) -> np.ndarray | None:
+    """Extrai probabilidades no-vig de mercado quando estao disponiveis."""
+    if isinstance(columns, str):
+        if columns not in data.columns:
+            return None
+        return data[columns].to_numpy(dtype=float)
+
+    column_list = list(columns)
+    if any(column not in data.columns for column in column_list):
+        return None
+    return data[column_list].to_numpy(dtype=float)
+
+
+def _blend_fold_probabilities(
+    y_validation: pd.Series,
+    validation_model_probabilities: np.ndarray,
+    test_model_probabilities: np.ndarray,
+    validation_data: pd.DataFrame,
+    test_data: pd.DataFrame,
+    market_probability_columns: str | Sequence[str],
+    labels: list[int],
+    market: str,
+) -> tuple[np.ndarray, float, int]:
+    """Ajusta blend modelo x mercado dentro do fold, sem olhar o teste."""
+    validation_market_probabilities = _market_probability_values(
+        validation_data,
+        market_probability_columns,
+    )
+    test_market_probabilities = _market_probability_values(
+        test_data,
+        market_probability_columns,
+    )
+    if validation_market_probabilities is None or test_market_probabilities is None:
+        return test_model_probabilities, 1.0, 0
+
+    alpha_model, _ = tune_probability_blend(
+        y_validation,
+        validation_model_probabilities,
+        validation_market_probabilities,
+        labels=labels,
+        market=f"{market} | fold",
+    )
+    probabilities = blend_probabilities(
+        test_model_probabilities,
+        test_market_probabilities,
+        alpha_model,
+    )
+    return probabilities, alpha_model, len(validation_data)
+
+
+def _base_walk_forward_row(
+    market: str,
+    fold: int,
+    train_data: pd.DataFrame,
+    test_data: pd.DataFrame,
+    alpha_model: float,
+    blend_validation_rows: int,
+) -> dict[str, float | int | str]:
+    """Monta metadados comuns de um fold walk-forward."""
+    train_start = train_data["MatchDatetime"].min()
+    train_end = train_data["MatchDatetime"].max()
+    test_start = test_data["MatchDatetime"].min()
+    test_end = test_data["MatchDatetime"].max()
+    return {
+        "Market": market,
+        "fold": fold,
+        "train_start": train_start.date().isoformat(),
+        "train_end": train_end.date().isoformat(),
+        "test_start": test_start.date().isoformat(),
+        "test_end": test_end.date().isoformat(),
+        "train_rows": len(train_data),
+        "test_rows": len(test_data),
+        "alpha_model": alpha_model,
+        "alpha_market": 1.0 - alpha_model,
+        "blend_validation_rows": blend_validation_rows,
+    }
+
+
+def _print_walk_forward_summary(summary: pd.DataFrame, title: str) -> None:
+    """Imprime resumo agregado dos folds."""
+    total_staked = float(summary["total_staked"].sum())
+    total_profit = float(summary["total_profit"].sum())
+    total_bets = float(summary["bets"].sum())
+    roi = total_profit / total_staked if total_staked > 0 else 0.0
+    weighted_hit_rate = (
+        float((summary["hit_rate"] * summary["bets"]).sum() / total_bets)
+        if total_bets > 0
+        else 0.0
+    )
+    positive_folds = float(summary["roi"].gt(0).mean()) if len(summary) else 0.0
+
+    print(f"\n========== RESUMO WALK-FORWARD {title} ==========")
+    print(f"Folds:                    {len(summary)}")
+    print(f"Folds ROI positivo:       {positive_folds:.2%}")
+    print(f"Acuracia media:           {summary['accuracy'].mean():.2%}")
+    print(f"LogLoss medio:            {summary['logloss'].mean():.4f}")
+    print(f"Brier medio:              {summary['brier_score'].mean():.4f}")
+    print(f"ECE medio:                {summary['calibration_ece'].mean():.2%}")
+    print(f"Apostas simuladas:        {summary['bets'].sum():.0f}")
+    print(f"Taxa de acerto apostas:   {weighted_hit_rate:.2%}")
+    print(f"Total apostado:           R$ {total_staked:.2f}")
+    print(f"Lucro/Prejuizo:           R$ {total_profit:.2f}")
+    print(f"ROI agregado:             {roi:.2%}")
+
+
+def run_walk_forward_validation(
+    data: pd.DataFrame,
+    feature_cols: Sequence[str],
+    config: PipelineConfig,
+    initial_train_fraction: float | None = None,
+) -> pd.DataFrame:
+    """Executa validacao walk-forward por blocos de datas para Over 2.5."""
+    if config.walk_forward_splits <= 0:
+        return pd.DataFrame()
+
+    train_fraction = (
+        config.walk_forward_initial_train_fraction
+        if initial_train_fraction is None
+        else initial_train_fraction
+    )
+    folds = _build_walk_forward_date_folds(data, config, train_fraction)
+    fold_rows: list[dict[str, float | int | str]] = []
+    print("\n========== WALK-FORWARD VALIDATION OVER 2.5 ==========")
+
+    for fold, train_data, test_data in folds:
+        if not _has_required_classes(train_data[TARGET_COL], [0, 1]):
+            print(f"[walk-forward Over 2.5] Fold {fold} ignorado: treino sem 2 classes.")
+            continue
+
+        model_train, blend_validation = _split_walk_forward_model_train(
+            train_data,
+            TARGET_COL,
+            config,
+            [0, 1],
+        )
         print(
-            f"[walk-forward] Fold {fold}/{config.walk_forward_splits}: "
-            f"treino {len(train_data):,}, teste {len(test_data):,}"
+            f"[walk-forward Over 2.5] Fold {fold}/{len(folds)}: "
+            f"treino ate {train_data['MatchDatetime'].max().date()}, "
+            f"teste {test_data['MatchDatetime'].min().date()} a "
+            f"{test_data['MatchDatetime'].max().date()} "
+            f"({len(test_data):,} jogos)"
         )
         model = train_calibrated_xgboost_model(
-            x_train,
-            y_train,
+            model_train.loc[:, feature_cols],
+            model_train[TARGET_COL],
             config.calibration_size,
             config.calibration_method,
             config.xgb_tuning_trials,
             config.xgb_tuning_validation_size,
+            sample_weight=_walk_forward_sample_weights(model_train, config),
         )
-        probabilities = model.predict_proba(x_test)[:, 1]
-        metrics = evaluate_model(y_test, probabilities)
+        probabilities = model.predict_proba(test_data.loc[:, feature_cols])[:, 1]
+        alpha_model = 1.0
+        blend_validation_rows = 0
+        if not blend_validation.empty:
+            validation_probabilities = model.predict_proba(
+                blend_validation.loc[:, feature_cols]
+            )[:, 1]
+            probabilities, alpha_model, blend_validation_rows = (
+                _blend_fold_probabilities(
+                    blend_validation[TARGET_COL],
+                    validation_probabilities,
+                    probabilities,
+                    blend_validation,
+                    test_data,
+                    NO_VIG_OVER_COL,
+                    [0, 1],
+                    "Over 2.5",
+                )
+            )
+
+        metrics = evaluate_model(test_data[TARGET_COL], probabilities)
         _, backtest_summary = run_backtest(
             test_data,
             probabilities,
@@ -552,55 +781,134 @@ def run_walk_forward_validation(
             min_model_prob=config.min_model_prob,
             max_over_odd=config.max_over_odd,
         )
-
-        fold_rows.append(
+        row = _base_walk_forward_row(
+            "Over 2.5",
+            fold,
+            train_data,
+            test_data,
+            alpha_model,
+            blend_validation_rows,
+        )
+        row.update(
             {
-                "fold": fold,
-                "train_start": train_data["MatchDatetime"].min().date().isoformat(),
-                "train_end": train_data["MatchDatetime"].max().date().isoformat(),
-                "test_start": test_data["MatchDatetime"].min().date().isoformat(),
-                "test_end": test_data["MatchDatetime"].max().date().isoformat(),
-                "train_rows": len(train_data),
-                "test_rows": len(test_data),
                 "accuracy": metrics["accuracy"],
                 "precision_over": metrics["precision_over"],
                 "logloss": metrics["logloss"],
                 "brier_score": metrics["brier_score"],
                 "calibration_ece": metrics["calibration_ece"],
-                "bets": backtest_summary["bets"],
-                "total_staked": backtest_summary["total_staked"],
-                "total_profit": backtest_summary["total_profit"],
-                "roi": backtest_summary["roi"],
-                "hit_rate": backtest_summary["hit_rate"],
-                "avg_edge": backtest_summary["avg_edge"],
-                "avg_model_prob": backtest_summary["avg_model_prob"],
-                "avg_odd": backtest_summary["avg_odd"],
+                **backtest_summary,
             }
         )
+        fold_rows.append(row)
 
     summary = pd.DataFrame(fold_rows)
-    total_staked = float(summary["total_staked"].sum())
-    total_profit = float(summary["total_profit"].sum())
-    total_bets = float(summary["bets"].sum())
-    roi = total_profit / total_staked if total_staked > 0 else 0.0
-    weighted_hit_rate = (
-        float((summary["hit_rate"] * summary["bets"]).sum() / total_bets)
-        if total_bets > 0
-        else 0.0
+    if not summary.empty:
+        _print_walk_forward_summary(summary, "OVER 2.5")
+    return summary
+
+
+def run_under25_walk_forward_validation(
+    data: pd.DataFrame,
+    feature_cols: Sequence[str],
+    config: PipelineConfig,
+    initial_train_fraction: float | None = None,
+) -> pd.DataFrame:
+    """Executa validacao walk-forward por blocos de datas para Under 2.5."""
+    if config.walk_forward_splits <= 0:
+        return pd.DataFrame()
+
+    train_fraction = (
+        config.walk_forward_initial_train_fraction
+        if initial_train_fraction is None
+        else initial_train_fraction
     )
+    folds = _build_walk_forward_date_folds(data, config, train_fraction)
+    fold_rows: list[dict[str, float | int | str]] = []
+    print("\n========== WALK-FORWARD VALIDATION UNDER 2.5 ==========")
 
-    print("\n========== RESUMO WALK-FORWARD ==========")
-    print(f"Folds:                    {len(summary)}")
-    print(f"Acuracia media:           {summary['accuracy'].mean():.2%}")
-    print(f"LogLoss medio:            {summary['logloss'].mean():.4f}")
-    print(f"Brier medio:              {summary['brier_score'].mean():.4f}")
-    print(f"ECE medio:                {summary['calibration_ece'].mean():.2%}")
-    print(f"Apostas simuladas:        {summary['bets'].sum():.0f}")
-    print(f"Taxa de acerto apostas:   {weighted_hit_rate:.2%}")
-    print(f"Total apostado:           R$ {total_staked:.2f}")
-    print(f"Lucro/Prejuizo:           R$ {total_profit:.2f}")
-    print(f"ROI agregado:             {roi:.2%}")
+    for fold, train_data, test_data in folds:
+        if not _has_required_classes(train_data[TARGET_COL], [0, 1]):
+            print(f"[walk-forward Under 2.5] Fold {fold} ignorado: treino sem 2 classes.")
+            continue
 
+        model_train, blend_validation = _split_walk_forward_model_train(
+            train_data,
+            TARGET_COL,
+            config,
+            [0, 1],
+        )
+        print(
+            f"[walk-forward Under 2.5] Fold {fold}/{len(folds)}: "
+            f"treino ate {train_data['MatchDatetime'].max().date()}, "
+            f"teste {test_data['MatchDatetime'].min().date()} a "
+            f"{test_data['MatchDatetime'].max().date()} "
+            f"({len(test_data):,} jogos)"
+        )
+        model = train_calibrated_xgboost_model(
+            model_train.loc[:, feature_cols],
+            model_train[TARGET_COL],
+            config.calibration_size,
+            config.calibration_method,
+            config.xgb_tuning_trials,
+            config.xgb_tuning_validation_size,
+            sample_weight=_walk_forward_sample_weights(model_train, config),
+        )
+        under_probabilities = 1.0 - model.predict_proba(
+            test_data.loc[:, feature_cols]
+        )[:, 1]
+        alpha_model = 1.0
+        blend_validation_rows = 0
+        if not blend_validation.empty:
+            validation_under_probabilities = 1.0 - model.predict_proba(
+                blend_validation.loc[:, feature_cols]
+            )[:, 1]
+            under_probabilities, alpha_model, blend_validation_rows = (
+                _blend_fold_probabilities(
+                    blend_validation[TARGET_COL].eq(0).astype(int),
+                    validation_under_probabilities,
+                    under_probabilities,
+                    blend_validation,
+                    test_data,
+                    NO_VIG_UNDER_COL,
+                    [0, 1],
+                    "Under 2.5",
+                )
+            )
+
+        y_under = test_data[TARGET_COL].eq(0).astype(int)
+        metrics = evaluate_model(y_under, under_probabilities)
+        over_probabilities = 1.0 - under_probabilities
+        _, backtest_summary = run_under25_backtest(
+            test_data,
+            over_probabilities,
+            stake=config.stake,
+            edge=config.edge,
+            min_model_prob=config.min_under_prob,
+            max_under_odd=config.max_under_odd,
+        )
+        row = _base_walk_forward_row(
+            "Under 2.5",
+            fold,
+            train_data,
+            test_data,
+            alpha_model,
+            blend_validation_rows,
+        )
+        row.update(
+            {
+                "accuracy": metrics["accuracy"],
+                "precision_under": metrics["precision_over"],
+                "logloss": metrics["logloss"],
+                "brier_score": metrics["brier_score"],
+                "calibration_ece": metrics["calibration_ece"],
+                **backtest_summary,
+            }
+        )
+        fold_rows.append(row)
+
+    summary = pd.DataFrame(fold_rows)
+    if not summary.empty:
+        _print_walk_forward_summary(summary, "UNDER 2.5")
     return summary
 
 
@@ -608,52 +916,72 @@ def run_match_result_walk_forward_validation(
     data: pd.DataFrame,
     feature_cols: Sequence[str],
     config: PipelineConfig,
-    initial_train_fraction: float = 0.50,
+    initial_train_fraction: float | None = None,
 ) -> pd.DataFrame:
-    """Executa validacao walk-forward para Resultado Final 1X2."""
+    """Executa validacao walk-forward por blocos de datas para Resultado 1X2."""
     if config.walk_forward_splits <= 0:
         return pd.DataFrame()
 
-    data = data.sort_values("MatchDatetime", kind="mergesort").reset_index(drop=True)
-    initial_train_size = int(len(data) * initial_train_fraction)
-    remaining_size = len(data) - initial_train_size
-    test_size = remaining_size // config.walk_forward_splits
-
-    if initial_train_size <= 0 or test_size <= 0:
-        raise ValueError("Dados insuficientes para walk-forward validation 1X2.")
-
+    train_fraction = (
+        config.walk_forward_initial_train_fraction
+        if initial_train_fraction is None
+        else initial_train_fraction
+    )
+    folds = _build_walk_forward_date_folds(data, config, train_fraction)
     fold_rows: list[dict[str, float | int | str]] = []
     print("\n========== WALK-FORWARD VALIDATION 1X2 ==========")
 
-    for fold in range(1, config.walk_forward_splits + 1):
-        train_end = initial_train_size + ((fold - 1) * test_size)
-        test_end = (
-            initial_train_size + (fold * test_size)
-            if fold < config.walk_forward_splits
-            else len(data)
+    for fold, train_data, test_data in folds:
+        if not _has_required_classes(train_data[RESULT_TARGET_COL], [0, 1, 2]):
+            print(f"[walk-forward 1X2] Fold {fold} ignorado: treino sem 3 classes.")
+            continue
+
+        model_train, blend_validation = _split_walk_forward_model_train(
+            train_data,
+            RESULT_TARGET_COL,
+            config,
+            [0, 1, 2],
         )
-
-        train_data = data.iloc[:train_end].copy()
-        test_data = data.iloc[train_end:test_end].copy()
-        x_train = train_data.loc[:, feature_cols]
-        y_train = train_data[RESULT_TARGET_COL]
-        x_test = test_data.loc[:, feature_cols]
-        y_test = test_data[RESULT_TARGET_COL]
-
         print(
-            f"[walk-forward 1X2] Fold {fold}/{config.walk_forward_splits}: "
-            f"treino {len(train_data):,}, teste {len(test_data):,}"
+            f"[walk-forward 1X2] Fold {fold}/{len(folds)}: "
+            f"treino ate {train_data['MatchDatetime'].max().date()}, "
+            f"teste {test_data['MatchDatetime'].min().date()} a "
+            f"{test_data['MatchDatetime'].max().date()} "
+            f"({len(test_data):,} jogos)"
         )
         model = train_calibrated_xgboost_model(
-            x_train,
-            y_train,
+            model_train.loc[:, feature_cols],
+            model_train[RESULT_TARGET_COL],
             config.calibration_size,
             config.calibration_method,
             config.xgb_tuning_trials,
             config.xgb_tuning_validation_size,
+            sample_weight=_walk_forward_sample_weights(model_train, config),
         )
-        probabilities = model.predict_proba(x_test)
-        metrics = evaluate_match_result_model(y_test, probabilities)
+        probabilities = model.predict_proba(test_data.loc[:, feature_cols])
+        alpha_model = 1.0
+        blend_validation_rows = 0
+        if not blend_validation.empty:
+            validation_probabilities = model.predict_proba(
+                blend_validation.loc[:, feature_cols]
+            )
+            probabilities, alpha_model, blend_validation_rows = (
+                _blend_fold_probabilities(
+                    blend_validation[RESULT_TARGET_COL],
+                    validation_probabilities,
+                    probabilities,
+                    blend_validation,
+                    test_data,
+                    [NO_VIG_HOME_COL, NO_VIG_DRAW_COL, NO_VIG_AWAY_COL],
+                    [0, 1, 2],
+                    "Resultado 1X2",
+                )
+            )
+
+        metrics = evaluate_match_result_model(
+            test_data[RESULT_TARGET_COL],
+            probabilities,
+        )
         _, backtest_summary = run_match_result_backtest(
             test_data,
             probabilities,
@@ -662,16 +990,16 @@ def run_match_result_walk_forward_validation(
             min_model_prob=config.min_result_prob,
             max_result_odd=config.max_result_odd,
         )
-
-        fold_rows.append(
+        row = _base_walk_forward_row(
+            "Resultado 1X2",
+            fold,
+            train_data,
+            test_data,
+            alpha_model,
+            blend_validation_rows,
+        )
+        row.update(
             {
-                "fold": fold,
-                "train_start": train_data["MatchDatetime"].min().date().isoformat(),
-                "train_end": train_data["MatchDatetime"].max().date().isoformat(),
-                "test_start": test_data["MatchDatetime"].min().date().isoformat(),
-                "test_end": test_data["MatchDatetime"].max().date().isoformat(),
-                "train_rows": len(train_data),
-                "test_rows": len(test_data),
                 "accuracy": metrics["accuracy"],
                 "precision_h": metrics["precision_h"],
                 "precision_d": metrics["precision_d"],
@@ -679,40 +1007,14 @@ def run_match_result_walk_forward_validation(
                 "logloss": metrics["logloss"],
                 "brier_score": metrics["brier_score"],
                 "calibration_ece": metrics["calibration_ece"],
-                "bets": backtest_summary["bets"],
-                "total_staked": backtest_summary["total_staked"],
-                "total_profit": backtest_summary["total_profit"],
-                "roi": backtest_summary["roi"],
-                "hit_rate": backtest_summary["hit_rate"],
-                "avg_edge": backtest_summary["avg_edge"],
-                "avg_model_prob": backtest_summary["avg_model_prob"],
-                "avg_odd": backtest_summary["avg_odd"],
+                **backtest_summary,
             }
         )
+        fold_rows.append(row)
 
     summary = pd.DataFrame(fold_rows)
-    total_staked = float(summary["total_staked"].sum())
-    total_profit = float(summary["total_profit"].sum())
-    total_bets = float(summary["bets"].sum())
-    roi = total_profit / total_staked if total_staked > 0 else 0.0
-    weighted_hit_rate = (
-        float((summary["hit_rate"] * summary["bets"]).sum() / total_bets)
-        if total_bets > 0
-        else 0.0
-    )
-
-    print("\n========== RESUMO WALK-FORWARD 1X2 ==========")
-    print(f"Folds:                    {len(summary)}")
-    print(f"Acuracia media:           {summary['accuracy'].mean():.2%}")
-    print(f"LogLoss medio:            {summary['logloss'].mean():.4f}")
-    print(f"Brier medio:              {summary['brier_score'].mean():.4f}")
-    print(f"ECE medio:                {summary['calibration_ece'].mean():.2%}")
-    print(f"Apostas simuladas:        {summary['bets'].sum():.0f}")
-    print(f"Taxa de acerto apostas:   {weighted_hit_rate:.2%}")
-    print(f"Total apostado:           R$ {total_staked:.2f}")
-    print(f"Lucro/Prejuizo:           R$ {total_profit:.2f}")
-    print(f"ROI agregado:             {roi:.2%}")
-
+    if not summary.empty:
+        _print_walk_forward_summary(summary, "1X2")
     return summary
 
 
@@ -720,52 +1022,72 @@ def run_win_walk_forward_validation(
     data: pd.DataFrame,
     feature_cols: Sequence[str],
     config: PipelineConfig,
-    initial_train_fraction: float = 0.50,
+    initial_train_fraction: float | None = None,
 ) -> pd.DataFrame:
-    """Executa validacao walk-forward para Vitoria Casa/Fora."""
+    """Executa validacao walk-forward por blocos de datas para vitorias."""
     if config.walk_forward_splits <= 0:
         return pd.DataFrame()
 
-    data = data.sort_values("MatchDatetime", kind="mergesort").reset_index(drop=True)
-    initial_train_size = int(len(data) * initial_train_fraction)
-    remaining_size = len(data) - initial_train_size
-    test_size = remaining_size // config.walk_forward_splits
-
-    if initial_train_size <= 0 or test_size <= 0:
-        raise ValueError("Dados insuficientes para walk-forward validation vitoria.")
-
+    train_fraction = (
+        config.walk_forward_initial_train_fraction
+        if initial_train_fraction is None
+        else initial_train_fraction
+    )
+    folds = _build_walk_forward_date_folds(data, config, train_fraction)
     fold_rows: list[dict[str, float | int | str]] = []
     print("\n========== WALK-FORWARD VALIDATION VITORIA ==========")
 
-    for fold in range(1, config.walk_forward_splits + 1):
-        train_end = initial_train_size + ((fold - 1) * test_size)
-        test_end = (
-            initial_train_size + (fold * test_size)
-            if fold < config.walk_forward_splits
-            else len(data)
+    for fold, train_data, test_data in folds:
+        if not _has_required_classes(train_data[RESULT_TARGET_COL], [0, 1, 2]):
+            print(f"[walk-forward Vitoria] Fold {fold} ignorado: treino sem 3 classes.")
+            continue
+
+        model_train, blend_validation = _split_walk_forward_model_train(
+            train_data,
+            RESULT_TARGET_COL,
+            config,
+            [0, 1, 2],
         )
-
-        train_data = data.iloc[:train_end].copy()
-        test_data = data.iloc[train_end:test_end].copy()
-        x_train = train_data.loc[:, feature_cols]
-        y_train = train_data[RESULT_TARGET_COL]
-        x_test = test_data.loc[:, feature_cols]
-        y_test = test_data[RESULT_TARGET_COL]
-
         print(
-            f"[walk-forward vitoria] Fold {fold}/{config.walk_forward_splits}: "
-            f"treino {len(train_data):,}, teste {len(test_data):,}"
+            f"[walk-forward Vitoria] Fold {fold}/{len(folds)}: "
+            f"treino ate {train_data['MatchDatetime'].max().date()}, "
+            f"teste {test_data['MatchDatetime'].min().date()} a "
+            f"{test_data['MatchDatetime'].max().date()} "
+            f"({len(test_data):,} jogos)"
         )
         model = train_calibrated_xgboost_model(
-            x_train,
-            y_train,
+            model_train.loc[:, feature_cols],
+            model_train[RESULT_TARGET_COL],
             config.calibration_size,
             config.calibration_method,
             config.xgb_tuning_trials,
             config.xgb_tuning_validation_size,
+            sample_weight=_walk_forward_sample_weights(model_train, config),
         )
-        probabilities = model.predict_proba(x_test)
-        metrics = evaluate_match_result_model(y_test, probabilities)
+        probabilities = model.predict_proba(test_data.loc[:, feature_cols])
+        alpha_model = 1.0
+        blend_validation_rows = 0
+        if not blend_validation.empty:
+            validation_probabilities = model.predict_proba(
+                blend_validation.loc[:, feature_cols]
+            )
+            probabilities, alpha_model, blend_validation_rows = (
+                _blend_fold_probabilities(
+                    blend_validation[RESULT_TARGET_COL],
+                    validation_probabilities,
+                    probabilities,
+                    blend_validation,
+                    test_data,
+                    [NO_VIG_HOME_COL, NO_VIG_DRAW_COL, NO_VIG_AWAY_COL],
+                    [0, 1, 2],
+                    "Vitoria Casa/Fora",
+                )
+            )
+
+        metrics = evaluate_match_result_model(
+            test_data[RESULT_TARGET_COL],
+            probabilities,
+        )
         _, backtest_summary = run_win_backtest(
             test_data,
             probabilities,
@@ -774,54 +1096,100 @@ def run_win_walk_forward_validation(
             min_model_prob=config.min_win_prob,
             max_win_odd=config.max_win_odd,
         )
-
-        fold_rows.append(
+        row = _base_walk_forward_row(
+            "Vitoria Casa/Fora",
+            fold,
+            train_data,
+            test_data,
+            alpha_model,
+            blend_validation_rows,
+        )
+        row.update(
             {
-                "fold": fold,
-                "train_start": train_data["MatchDatetime"].min().date().isoformat(),
-                "train_end": train_data["MatchDatetime"].max().date().isoformat(),
-                "test_start": test_data["MatchDatetime"].min().date().isoformat(),
-                "test_end": test_data["MatchDatetime"].max().date().isoformat(),
-                "train_rows": len(train_data),
-                "test_rows": len(test_data),
                 "accuracy": metrics["accuracy"],
                 "precision_h": metrics["precision_h"],
                 "precision_a": metrics["precision_a"],
                 "logloss": metrics["logloss"],
                 "brier_score": metrics["brier_score"],
                 "calibration_ece": metrics["calibration_ece"],
-                "bets": backtest_summary["bets"],
-                "total_staked": backtest_summary["total_staked"],
-                "total_profit": backtest_summary["total_profit"],
-                "roi": backtest_summary["roi"],
-                "hit_rate": backtest_summary["hit_rate"],
-                "avg_edge": backtest_summary["avg_edge"],
-                "avg_model_prob": backtest_summary["avg_model_prob"],
-                "avg_odd": backtest_summary["avg_odd"],
+                **backtest_summary,
+            }
+        )
+        fold_rows.append(row)
+
+    summary = pd.DataFrame(fold_rows)
+    if not summary.empty:
+        _print_walk_forward_summary(summary, "VITORIA")
+    return summary
+
+
+def summarize_walk_forward_stability(summary: pd.DataFrame) -> pd.DataFrame:
+    """Resume estabilidade temporal por mercado."""
+    if summary.empty or "Market" not in summary.columns:
+        return pd.DataFrame()
+
+    rows: list[dict[str, float | int | str]] = []
+    for market, market_data in summary.groupby("Market", sort=False):
+        market_data = market_data.copy()
+        total_bets = float(market_data["bets"].sum())
+        total_staked = float(market_data["total_staked"].sum())
+        total_profit = float(market_data["total_profit"].sum())
+        aggregate_roi = total_profit / total_staked if total_staked > 0 else 0.0
+        positive_roi_rate = float(market_data["roi"].gt(0).mean())
+        weighted_hit_rate = (
+            float((market_data["hit_rate"] * market_data["bets"]).sum() / total_bets)
+            if total_bets > 0
+            else 0.0
+        )
+        roi_std = (
+            float(market_data["roi"].std(ddof=0)) if len(market_data) > 1 else 0.0
+        )
+        stability_score = aggregate_roi - (roi_std * 0.50)
+        if total_bets < 30:
+            status = "Pouco volume"
+        elif aggregate_roi > 0 and positive_roi_rate >= 0.60:
+            status = "Estavel"
+        elif aggregate_roi > 0:
+            status = "Promissor"
+        else:
+            status = "Instavel"
+
+        rows.append(
+            {
+                "Market": market,
+                "Folds": len(market_data),
+                "PositiveROIFolds": int(market_data["roi"].gt(0).sum()),
+                "PositiveROIRate": positive_roi_rate,
+                "MeanROI": float(market_data["roi"].mean()),
+                "MedianROI": float(market_data["roi"].median()),
+                "StdROI": roi_std,
+                "MinROI": float(market_data["roi"].min()),
+                "MaxROI": float(market_data["roi"].max()),
+                "AggregateROI": aggregate_roi,
+                "TotalBets": total_bets,
+                "TotalStaked": total_staked,
+                "TotalProfit": total_profit,
+                "WeightedHitRate": weighted_hit_rate,
+                "MeanLogLoss": float(market_data["logloss"].mean()),
+                "StdLogLoss": (
+                    float(market_data["logloss"].std(ddof=0))
+                    if len(market_data) > 1
+                    else 0.0
+                ),
+                "MeanBrierScore": float(market_data["brier_score"].mean()),
+                "MeanCalibrationECE": float(
+                    market_data["calibration_ece"].mean()
+                ),
+                "MeanAlphaModel": float(market_data["alpha_model"].mean()),
+                "WorstFoldProfit": float(market_data["total_profit"].min()),
+                "BestFoldProfit": float(market_data["total_profit"].max()),
+                "StabilityScore": stability_score,
+                "Status": status,
             }
         )
 
-    summary = pd.DataFrame(fold_rows)
-    total_staked = float(summary["total_staked"].sum())
-    total_profit = float(summary["total_profit"].sum())
-    total_bets = float(summary["bets"].sum())
-    roi = total_profit / total_staked if total_staked > 0 else 0.0
-    weighted_hit_rate = (
-        float((summary["hit_rate"] * summary["bets"]).sum() / total_bets)
-        if total_bets > 0
-        else 0.0
+    return pd.DataFrame(rows).sort_values(
+        ["Status", "StabilityScore"],
+        ascending=[True, False],
+        kind="mergesort",
     )
-
-    print("\n========== RESUMO WALK-FORWARD VITORIA ==========")
-    print(f"Folds:                    {len(summary)}")
-    print(f"Acuracia 1X2 media:       {summary['accuracy'].mean():.2%}")
-    print(f"LogLoss 1X2 medio:        {summary['logloss'].mean():.4f}")
-    print(f"Brier 1X2 medio:          {summary['brier_score'].mean():.4f}")
-    print(f"ECE medio:                {summary['calibration_ece'].mean():.2%}")
-    print(f"Apostas simuladas:        {summary['bets'].sum():.0f}")
-    print(f"Taxa de acerto apostas:   {weighted_hit_rate:.2%}")
-    print(f"Total apostado:           R$ {total_staked:.2f}")
-    print(f"Lucro/Prejuizo:           R$ {total_profit:.2f}")
-    print(f"ROI agregado:             {roi:.2%}")
-
-    return summary

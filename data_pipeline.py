@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from clubelo import TEAM_STRENGTH_FEATURE_COLS
 from config import (
     BASE_URL,
     EXTRA_LEAGUE_URLS,
@@ -121,6 +122,40 @@ OPEN_DRAW_CANDIDATES = ["B365D", "PSD", "MaxD", "AvgD", "BFED"]
 CLOSE_DRAW_CANDIDATES = ["B365CD", "PSCD", "MaxCD", "AvgCD", "BFECD"]
 OPEN_AWAY_CANDIDATES = ["B365A", "PSA", "MaxA", "AvgA", "BFEA"]
 CLOSE_AWAY_CANDIDATES = ["B365CA", "PSCA", "MaxCA", "AvgCA", "BFECA"]
+OPEN_AH_LINE_CANDIDATES = ["AHh"]
+CLOSE_AH_LINE_CANDIDATES = ["AHCh", "AHh"]
+OPEN_AH_HOME_CANDIDATES = [
+    "B365AHH",
+    "PAHH",
+    "MaxAHH",
+    "AvgAHH",
+    "BFEAHH",
+]
+CLOSE_AH_HOME_CANDIDATES = [
+    "B365CAHH",
+    "PCAHH",
+    "MaxCAHH",
+    "AvgCAHH",
+    "BFECAHH",
+    "B365AHH",
+    "PAHH",
+]
+OPEN_AH_AWAY_CANDIDATES = [
+    "B365AHA",
+    "PAHA",
+    "MaxAHA",
+    "AvgAHA",
+    "BFEAHA",
+]
+CLOSE_AH_AWAY_CANDIDATES = [
+    "B365CAHA",
+    "PCAHA",
+    "MaxCAHA",
+    "AvgCAHA",
+    "BFECAHA",
+    "B365AHA",
+    "PAHA",
+]
 MATCH_IMPORTANCE_FEATURE_COLS = [
     "Home_PreMatch_Rank",
     "Away_PreMatch_Rank",
@@ -237,6 +272,76 @@ ODDS_MOVEMENT_FEATURE_COLS = [
     "Away_OddsMove",
     "Away_ImpliedMove",
 ]
+MARKET_QUALITY_FEATURE_COLS = [
+    "Over25_MaxAvgGap",
+    "Under25_MaxAvgGap",
+    "Totals_MaxAvgGap",
+    "Over25_BestVsSelectedGap",
+    "Under25_BestVsSelectedGap",
+    "Home_MaxAvgGap",
+    "Draw_MaxAvgGap",
+    "Away_MaxAvgGap",
+    "Result_MaxAvgGap",
+    "Home_BestVsSelectedGap",
+    "Draw_BestVsSelectedGap",
+    "Away_BestVsSelectedGap",
+    "Odds_Quality_Total",
+    "Odds_Quality_Result",
+]
+SCHEDULE_FEATURE_COLS = [
+    "Match_IsWeekend",
+    "Match_IsMidweek",
+    "Kickoff_Hour",
+    "Kickoff_Evening",
+    "Kickoff_Early",
+    "Home_Matches_Last7",
+    "Away_Matches_Last7",
+    "Matches_Last7_Diff",
+    "Home_Matches_Last14",
+    "Away_Matches_Last14",
+    "Matches_Last14_Diff",
+    "Home_ShortRest",
+    "Away_ShortRest",
+    "ShortRest_Diff",
+    "BothShortRest",
+    "Home_LongRest",
+    "Away_LongRest",
+    "LongRest_Diff",
+]
+ASIAN_HANDICAP_FEATURE_COLS = [
+    "AH_Line",
+    "AH_AbsLine",
+    "AH_HomeFavored",
+    "AH_AwayFavored",
+    "AH_PickEm",
+    "AH_HomeOdds",
+    "AH_AwayOdds",
+    "AH_Overround",
+    "AH_NoVigHomeCover",
+    "AH_NoVigAwayCover",
+    "AH_FavoriteCoverProb",
+    "AH_UnderdogCoverProb",
+    "AH_HomeStrengthMove",
+    "AH_AbsLineMove",
+    "AH_HomeOddsMove",
+    "AH_AwayOddsMove",
+]
+LEAGUE_CONTEXT_FEATURE_COLS = [
+    "League_TotalGoals_Pregame",
+    "League_Over25Rate_Pregame",
+    "League_HomeGoals_Pregame",
+    "League_AwayGoals_Pregame",
+    "League_FirstHalfGoals_Pregame",
+    "League_ShotsTotal_Pregame",
+    "League_xGTotal_Pregame",
+    "League_OddOver25_Pregame",
+    "Home_Attack_vs_League",
+    "Away_Attack_vs_League",
+    "Expected_Total_vs_League",
+    "Shots_Total_vs_League",
+    "FirstHalfGoals_vs_League",
+    "xG_Total_vs_League",
+]
 TEAM_XG_METRICS = [
     "xGAvailable",
     "xGFor",
@@ -278,6 +383,7 @@ ELO_FEATURE_COLS = [
     "Elo_Expected_Home",
     "Elo_Expected_Away",
 ]
+CSV_ENCODING_CANDIDATES = ("utf-8-sig", "utf-8", "cp1252", "latin1")
 
 
 def download_csv_if_needed(
@@ -323,6 +429,29 @@ def download_csv_if_needed(
     return file_path
 
 
+def read_football_csv(file_path: Path) -> pd.DataFrame:
+    """Le CSV historico com fallback para codificacoes antigas do site."""
+    last_error: Exception | None = None
+    for encoding in CSV_ENCODING_CANDIDATES:
+        try:
+            return pd.read_csv(file_path, encoding=encoding)
+        except (UnicodeDecodeError, pd.errors.ParserError) as exc:
+            last_error = exc
+            try:
+                return pd.read_csv(
+                    file_path,
+                    encoding=encoding,
+                    engine="python",
+                    on_bad_lines="skip",
+                )
+            except (UnicodeDecodeError, pd.errors.ParserError) as inner_exc:
+                last_error = inner_exc
+
+    if last_error is not None:
+        raise last_error
+    return pd.read_csv(file_path, encoding="utf-8-sig")
+
+
 def load_football_data(
     leagues: Sequence[str],
     seasons: Sequence[str],
@@ -337,7 +466,7 @@ def load_football_data(
             if file_path is None:
                 continue
 
-            data = pd.read_csv(file_path, encoding="utf-8-sig")
+            data = read_football_csv(file_path)
             data.columns = data.columns.str.strip()
             data = data.rename(
                 columns={
@@ -358,7 +487,7 @@ def load_football_data(
             if file_path is None:
                 continue
 
-            data = pd.read_csv(file_path, encoding="utf-8-sig")
+            data = read_football_csv(file_path)
             data.columns = data.columns.str.strip()
             metadata = pd.DataFrame(
                 {
@@ -492,6 +621,8 @@ def prepare_initial_data(
     data[ODD_AWAY_COL], _ = coalesce_numeric_columns(data, AWAY_ODDS_CANDIDATES)
     data = add_no_vig_market_probabilities(data)
     data = add_odds_movement_features(data)
+    data = add_market_quality_features(data)
+    data = add_asian_handicap_features(data)
 
     data = data.sort_values(
         ["MatchDatetime", "Liga", "Temporada", "HomeTeam", "AwayTeam"],
@@ -615,6 +746,267 @@ def add_odds_movement_features(data: pd.DataFrame) -> pd.DataFrame:
         result_valid = pd.Series(False, index=data.index)
     data["Result_ClosingAvailable"] = result_valid.astype(float)
     return data
+
+
+def _relative_gap(
+    numerator: pd.Series,
+    denominator: pd.Series,
+) -> pd.Series:
+    """Calcula diferenca relativa entre duas odds validas."""
+    numerator = pd.to_numeric(numerator, errors="coerce")
+    denominator = pd.to_numeric(denominator, errors="coerce")
+    valid = _valid_odds_mask(numerator, denominator)
+    gap = (numerator - denominator) / denominator.replace(0.0, np.nan)
+    return gap.where(valid, 0.0).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+def _market_quality_pair(
+    data: pd.DataFrame,
+    max_candidates: Sequence[str],
+    avg_candidates: Sequence[str],
+    selected_col: str,
+    prefix: str,
+) -> pd.DataFrame:
+    """Cria sinais de dispersao do mercado para uma selecao."""
+    max_odd, _ = coalesce_numeric_columns(data, max_candidates)
+    avg_odd, _ = coalesce_numeric_columns(data, avg_candidates)
+    selected_odd = pd.to_numeric(
+        data.get(selected_col, pd.Series(np.nan, index=data.index)),
+        errors="coerce",
+    )
+
+    data[f"{prefix}_MaxAvgGap"] = _relative_gap(max_odd, avg_odd).clip(
+        lower=0.0,
+        upper=0.50,
+    )
+    data[f"{prefix}_BestVsSelectedGap"] = _relative_gap(
+        max_odd,
+        selected_odd,
+    ).clip(lower=0.0, upper=0.50)
+    return data
+
+
+def add_market_quality_features(data: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona sinais de dispersao e qualidade das odds disponiveis.
+
+    O objetivo e mostrar ao modelo quando a melhor odd esta muito acima da
+    media do mercado, o que costuma indicar maior incerteza, baixa liquidez ou
+    uma oportunidade que precisa de filtro extra.
+    """
+    data = data.copy()
+    for col in MARKET_QUALITY_FEATURE_COLS:
+        data[col] = 0.0
+
+    data = _market_quality_pair(
+        data,
+        ["MaxC>2.5", "Max>2.5", "BbMx>2.5"],
+        ["AvgC>2.5", "Avg>2.5", "BbAv>2.5"],
+        ODD_OVER_COL,
+        "Over25",
+    )
+    data = _market_quality_pair(
+        data,
+        ["MaxC<2.5", "Max<2.5", "BbMx<2.5"],
+        ["AvgC<2.5", "Avg<2.5", "BbAv<2.5"],
+        ODD_UNDER_COL,
+        "Under25",
+    )
+
+    result_specs = [
+        (
+            "Home",
+            ["MaxCH", "MaxH", "BbMxH"],
+            ["AvgCH", "AvgH", "BbAvH"],
+            ODD_HOME_COL,
+        ),
+        (
+            "Draw",
+            ["MaxCD", "MaxD", "BbMxD"],
+            ["AvgCD", "AvgD", "BbAvD"],
+            ODD_DRAW_COL,
+        ),
+        (
+            "Away",
+            ["MaxCA", "MaxA", "BbMxA"],
+            ["AvgCA", "AvgA", "BbAvA"],
+            ODD_AWAY_COL,
+        ),
+    ]
+    for prefix, max_cols, avg_cols, selected_col in result_specs:
+        data = _market_quality_pair(
+            data,
+            max_cols,
+            avg_cols,
+            selected_col,
+            prefix,
+        )
+
+    data["Totals_MaxAvgGap"] = data[
+        ["Over25_MaxAvgGap", "Under25_MaxAvgGap"]
+    ].mean(axis=1)
+    data["Result_MaxAvgGap"] = data[
+        ["Home_MaxAvgGap", "Draw_MaxAvgGap", "Away_MaxAvgGap"]
+    ].mean(axis=1)
+    data["Odds_Quality_Total"] = 1.0 / (1.0 + data["Totals_MaxAvgGap"])
+    data["Odds_Quality_Result"] = 1.0 / (1.0 + data["Result_MaxAvgGap"])
+
+    data[MARKET_QUALITY_FEATURE_COLS] = (
+        data[MARKET_QUALITY_FEATURE_COLS]
+        .apply(pd.to_numeric, errors="coerce")
+        .fillna(0.0)
+    )
+    return data
+
+
+def add_asian_handicap_features(data: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona sinais do mercado Asian Handicap ao dataset."""
+    enriched = data.copy()
+    for col in ASIAN_HANDICAP_FEATURE_COLS:
+        enriched[col] = 0.0
+
+    closing_line, _ = coalesce_numeric_columns(
+        enriched,
+        CLOSE_AH_LINE_CANDIDATES,
+    )
+    opening_line, _ = coalesce_numeric_columns(
+        enriched,
+        OPEN_AH_LINE_CANDIDATES,
+    )
+    closing_home, _ = coalesce_numeric_columns(
+        enriched,
+        CLOSE_AH_HOME_CANDIDATES,
+    )
+    closing_away, _ = coalesce_numeric_columns(
+        enriched,
+        CLOSE_AH_AWAY_CANDIDATES,
+    )
+    opening_home, _ = coalesce_numeric_columns(
+        enriched,
+        OPEN_AH_HOME_CANDIDATES,
+    )
+    opening_away, _ = coalesce_numeric_columns(
+        enriched,
+        OPEN_AH_AWAY_CANDIDATES,
+    )
+
+    line = pd.to_numeric(closing_line, errors="coerce")
+    open_line = pd.to_numeric(opening_line, errors="coerce")
+    home_odds = pd.to_numeric(closing_home, errors="coerce")
+    away_odds = pd.to_numeric(closing_away, errors="coerce")
+    open_home_odds = pd.to_numeric(opening_home, errors="coerce")
+    open_away_odds = pd.to_numeric(opening_away, errors="coerce")
+    valid_odds = _valid_odds_mask(home_odds.fillna(np.nan), away_odds.fillna(np.nan))
+
+    raw_home = (1.0 / home_odds).where(valid_odds)
+    raw_away = (1.0 / away_odds).where(valid_odds)
+    overround = raw_home + raw_away
+    no_vig_home = raw_home / overround.replace(0.0, np.nan)
+    no_vig_away = raw_away / overround.replace(0.0, np.nan)
+
+    enriched["AH_Line"] = line.fillna(0.0)
+    enriched["AH_AbsLine"] = line.abs().fillna(0.0)
+    enriched["AH_HomeFavored"] = line.lt(0.0).astype(float)
+    enriched["AH_AwayFavored"] = line.gt(0.0).astype(float)
+    enriched["AH_PickEm"] = line.abs().le(0.001).astype(float)
+    enriched["AH_HomeOdds"] = home_odds.where(valid_odds, np.nan).fillna(0.0)
+    enriched["AH_AwayOdds"] = away_odds.where(valid_odds, np.nan).fillna(0.0)
+    enriched["AH_Overround"] = overround.fillna(0.0)
+    enriched["AH_NoVigHomeCover"] = no_vig_home.fillna(0.0)
+    enriched["AH_NoVigAwayCover"] = no_vig_away.fillna(0.0)
+    enriched["AH_FavoriteCoverProb"] = np.maximum(
+        enriched["AH_NoVigHomeCover"],
+        enriched["AH_NoVigAwayCover"],
+    )
+    enriched["AH_UnderdogCoverProb"] = np.minimum(
+        enriched["AH_NoVigHomeCover"],
+        enriched["AH_NoVigAwayCover"],
+    )
+    enriched["AH_HomeStrengthMove"] = (open_line - line).fillna(0.0)
+    enriched["AH_AbsLineMove"] = (
+        line.abs() - open_line.abs()
+    ).fillna(0.0)
+    enriched["AH_HomeOddsMove"] = (
+        home_odds - open_home_odds
+    ).where(_valid_odds_mask(home_odds, open_home_odds), 0.0).fillna(0.0)
+    enriched["AH_AwayOddsMove"] = (
+        away_odds - open_away_odds
+    ).where(_valid_odds_mask(away_odds, open_away_odds), 0.0).fillna(0.0)
+
+    enriched[ASIAN_HANDICAP_FEATURE_COLS] = (
+        enriched[ASIAN_HANDICAP_FEATURE_COLS]
+        .apply(pd.to_numeric, errors="coerce")
+        .fillna(0.0)
+    )
+    return enriched
+
+
+def add_match_timing_features(data: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona sinais simples de horario e dia do jogo."""
+    enriched = data.copy()
+    match_datetime = pd.to_datetime(
+        enriched.get("MatchDatetime"),
+        errors="coerce",
+    )
+    weekday = match_datetime.dt.dayofweek
+    kickoff_hour = (
+        match_datetime.dt.hour + (match_datetime.dt.minute.fillna(0.0) / 60.0)
+    )
+
+    enriched["Match_IsWeekend"] = weekday.isin([5, 6]).astype(float)
+    enriched["Match_IsMidweek"] = weekday.isin([1, 2, 3]).astype(float)
+    enriched["Kickoff_Hour"] = kickoff_hour.fillna(15.0)
+    enriched["Kickoff_Evening"] = enriched["Kickoff_Hour"].ge(18.0).astype(float)
+    enriched["Kickoff_Early"] = enriched["Kickoff_Hour"].lt(13.0).astype(float)
+    return enriched
+
+
+def add_rest_context_features(data: pd.DataFrame) -> pd.DataFrame:
+    """Cria flags de descanso curto/longo a partir dos dias sem jogar."""
+    enriched = data.copy()
+    for col in [
+        "Home_RestDays",
+        "Away_RestDays",
+        "Home_Matches_Last7",
+        "Away_Matches_Last7",
+        "Home_Matches_Last14",
+        "Away_Matches_Last14",
+    ]:
+        if col not in enriched.columns:
+            enriched[col] = 0.0
+        enriched[col] = pd.to_numeric(enriched[col], errors="coerce").fillna(0.0)
+
+    enriched["Matches_Last7_Diff"] = (
+        enriched["Home_Matches_Last7"] - enriched["Away_Matches_Last7"]
+    )
+    enriched["Matches_Last14_Diff"] = (
+        enriched["Home_Matches_Last14"] - enriched["Away_Matches_Last14"]
+    )
+    enriched["Home_ShortRest"] = enriched["Home_RestDays"].between(
+        1.0,
+        3.0,
+        inclusive="both",
+    ).astype(float)
+    enriched["Away_ShortRest"] = enriched["Away_RestDays"].between(
+        1.0,
+        3.0,
+        inclusive="both",
+    ).astype(float)
+    enriched["ShortRest_Diff"] = (
+        enriched["Home_ShortRest"] - enriched["Away_ShortRest"]
+    )
+    enriched["BothShortRest"] = (
+        enriched["Home_ShortRest"].eq(1.0) & enriched["Away_ShortRest"].eq(1.0)
+    ).astype(float)
+    enriched["Home_LongRest"] = enriched["Home_RestDays"].ge(10.0).astype(float)
+    enriched["Away_LongRest"] = enriched["Away_RestDays"].ge(10.0).astype(float)
+    enriched["LongRest_Diff"] = enriched["Home_LongRest"] - enriched["Away_LongRest"]
+
+    enriched[SCHEDULE_FEATURE_COLS] = (
+        enriched[SCHEDULE_FEATURE_COLS]
+        .apply(pd.to_numeric, errors="coerce")
+        .fillna(0.0)
+    )
+    return enriched
 
 
 def calculate_elo_expected_score(rating_a: float, rating_b: float) -> float:
@@ -1409,6 +1801,146 @@ def add_xg_interaction_features(data: pd.DataFrame) -> pd.DataFrame:
     return enriched
 
 
+def add_league_context_features(
+    data: pd.DataFrame,
+    window: int = 50,
+) -> pd.DataFrame:
+    """Adiciona o ritmo medio da liga/temporada antes de cada jogo."""
+    enriched = data.copy()
+    for col in LEAGUE_CONTEXT_FEATURE_COLS:
+        enriched[col] = np.nan
+
+    required_cols = {"Liga", "Temporada", "MatchDatetime", "FTHG", "FTAG"}
+    if not required_cols.issubset(enriched.columns):
+        enriched[LEAGUE_CONTEXT_FEATURE_COLS] = (
+            enriched[LEAGUE_CONTEXT_FEATURE_COLS]
+            .apply(pd.to_numeric, errors="coerce")
+            .fillna(0.0)
+        )
+        return enriched
+
+    league_history = pd.DataFrame(
+        {
+            "Liga": enriched["Liga"].astype(str),
+            "Temporada": enriched["Temporada"].astype(str),
+            "MatchDatetime": pd.to_datetime(
+                enriched["MatchDatetime"],
+                errors="coerce",
+            ),
+            "TotalGoals": (
+                _numeric_column_or_nan(enriched, "FTHG")
+                + _numeric_column_or_nan(enriched, "FTAG")
+            ),
+            "Over25Rate": (
+                (
+                    _numeric_column_or_nan(enriched, "FTHG")
+                    + _numeric_column_or_nan(enriched, "FTAG")
+                )
+                > 2.5
+            ).astype(float),
+            "HomeGoals": _numeric_column_or_nan(enriched, "FTHG"),
+            "AwayGoals": _numeric_column_or_nan(enriched, "FTAG"),
+            "FirstHalfGoals": (
+                _numeric_column_or_nan(enriched, "HTHG")
+                + _numeric_column_or_nan(enriched, "HTAG")
+            ),
+            "ShotsTotal": (
+                _numeric_column_or_nan(enriched, "HS")
+                + _numeric_column_or_nan(enriched, "AS")
+            ),
+            "xGTotal": (
+                _numeric_column_or_nan(enriched, "Understat_Home_xG")
+                + _numeric_column_or_nan(enriched, "Understat_Away_xG")
+            ),
+            "OddOver25": _numeric_column_or_nan(enriched, ODD_OVER_COL),
+        },
+        index=enriched.index,
+    ).sort_values(
+        ["Liga", "Temporada", "MatchDatetime"],
+        kind="mergesort",
+    )
+    grouped = league_history.groupby(["Liga", "Temporada"], group_keys=False)
+    rolling_specs = {
+        "League_TotalGoals_Pregame": "TotalGoals",
+        "League_Over25Rate_Pregame": "Over25Rate",
+        "League_HomeGoals_Pregame": "HomeGoals",
+        "League_AwayGoals_Pregame": "AwayGoals",
+        "League_FirstHalfGoals_Pregame": "FirstHalfGoals",
+        "League_ShotsTotal_Pregame": "ShotsTotal",
+        "League_xGTotal_Pregame": "xGTotal",
+        "League_OddOver25_Pregame": "OddOver25",
+    }
+    for output_col, source_col in rolling_specs.items():
+        league_history[output_col] = grouped[source_col].transform(
+            lambda series: series.shift(1).rolling(
+                window,
+                min_periods=1,
+            ).mean()
+        )
+
+    enriched.loc[league_history.index, list(rolling_specs)] = league_history[
+        list(rolling_specs)
+    ]
+
+    fallback_constants = {
+        "League_TotalGoals_Pregame": 2.55,
+        "League_Over25Rate_Pregame": 0.50,
+        "League_HomeGoals_Pregame": 1.40,
+        "League_AwayGoals_Pregame": 1.15,
+        "League_FirstHalfGoals_Pregame": 1.05,
+        "League_ShotsTotal_Pregame": 24.0,
+        "League_OddOver25_Pregame": 1.95,
+    }
+    enriched["League_xGTotal_Pregame"] = enriched[
+        "League_xGTotal_Pregame"
+    ].fillna(enriched["League_TotalGoals_Pregame"])
+
+    for col, default in fallback_constants.items():
+        numeric_col = pd.to_numeric(enriched[col], errors="coerce")
+        median = numeric_col.dropna().median()
+        enriched[col] = numeric_col.fillna(
+            float(median) if pd.notna(median) else default
+        )
+
+    xg_median = pd.to_numeric(
+        enriched["League_xGTotal_Pregame"],
+        errors="coerce",
+    ).dropna().median()
+    enriched["League_xGTotal_Pregame"] = pd.to_numeric(
+        enriched["League_xGTotal_Pregame"],
+        errors="coerce",
+    ).fillna(float(xg_median) if pd.notna(xg_median) else 2.55)
+
+    enriched["Home_Attack_vs_League"] = (
+        enriched["Home_GF_Roll5"] - enriched["League_HomeGoals_Pregame"]
+    )
+    enriched["Away_Attack_vs_League"] = (
+        enriched["Away_GF_Roll5"] - enriched["League_AwayGoals_Pregame"]
+    )
+    enriched["Expected_Total_vs_League"] = (
+        enriched["Expected_Total_Goals_Form_Roll5"]
+        - enriched["League_TotalGoals_Pregame"]
+    )
+    enriched["Shots_Total_vs_League"] = (
+        enriched["Shots_Total_Roll5"] - enriched["League_ShotsTotal_Pregame"]
+    )
+    enriched["FirstHalfGoals_vs_League"] = (
+        enriched["FirstHalfGoals_Total_Roll5"]
+        - enriched["League_FirstHalfGoals_Pregame"]
+    )
+    enriched["xG_Total_vs_League"] = (
+        enriched["xG_Expected_Total_Match_Roll5"]
+        - enriched["League_xGTotal_Pregame"]
+    )
+
+    enriched[LEAGUE_CONTEXT_FEATURE_COLS] = (
+        enriched[LEAGUE_CONTEXT_FEATURE_COLS]
+        .apply(pd.to_numeric, errors="coerce")
+        .fillna(0.0)
+    )
+    return enriched
+
+
 def add_referee_features(data: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     """Adiciona historico pre-jogo do arbitro quando disponivel."""
     enriched = data.copy()
@@ -1686,6 +2218,37 @@ def build_team_match_table(data: pd.DataFrame) -> pd.DataFrame:
     return team_matches
 
 
+def add_recent_match_count_features(team_matches: pd.DataFrame) -> pd.DataFrame:
+    """Conta partidas recentes de cada time antes do jogo atual."""
+    enriched = team_matches.copy()
+    for days in [7, 14]:
+        enriched[f"Matches_Last{days}"] = 0.0
+
+    for _, group in enriched.groupby("Team", sort=False):
+        group = group.sort_values(
+            ["MatchDatetime", "MatchId"],
+            kind="mergesort",
+        )
+        datetimes = pd.to_datetime(group["MatchDatetime"], errors="coerce")
+        valid_mask = datetimes.notna()
+        if not valid_mask.any():
+            continue
+
+        valid_group = group.loc[valid_mask]
+        timestamps = datetimes.loc[valid_mask].to_numpy(dtype="datetime64[ns]")
+        positions = np.arange(len(valid_group))
+
+        for days in [7, 14]:
+            starts = timestamps - np.timedelta64(days, "D")
+            left_edges = np.searchsorted(timestamps, starts, side="left")
+            counts = positions - left_edges
+            enriched.loc[valid_group.index, f"Matches_Last{days}"] = counts.astype(
+                float
+            )
+
+    return enriched
+
+
 def add_rolling_features(
     data: pd.DataFrame,
     window: int = 5,
@@ -1704,6 +2267,7 @@ def add_rolling_features(
     data = add_referee_features(data)
 
     team_matches = build_team_match_table(data)
+    team_matches = add_recent_match_count_features(team_matches)
     grouped = team_matches.groupby("Team", group_keys=False)
     grouped_side = team_matches.groupby(["Team", "Side"], group_keys=False)
 
@@ -1815,6 +2379,8 @@ def add_rolling_features(
             "GoalDiff_Side_Roll5",
             "RestDays",
             "SideRestDays",
+            "Matches_Last7",
+            "Matches_Last14",
             *[f"{metric}_Roll5" for metric in TEAM_MATCH_STAT_METRICS],
             *[
                 f"{metric}_Side_Roll5"
@@ -1845,6 +2411,8 @@ def add_rolling_features(
             "GoalDiff_Side_Roll5": "Home_Home_GoalDiff_Roll5",
             "RestDays": "Home_RestDays",
             "SideRestDays": "Home_Home_RestDays",
+            "Matches_Last7": "Home_Matches_Last7",
+            "Matches_Last14": "Home_Matches_Last14",
             **{
                 f"{metric}_Roll5": f"Home_{metric}_Roll5"
                 for metric in TEAM_MATCH_STAT_METRICS
@@ -1887,6 +2455,8 @@ def add_rolling_features(
             "GoalDiff_Side_Roll5",
             "RestDays",
             "SideRestDays",
+            "Matches_Last7",
+            "Matches_Last14",
             *[f"{metric}_Roll5" for metric in TEAM_MATCH_STAT_METRICS],
             *[
                 f"{metric}_Side_Roll5"
@@ -1917,6 +2487,8 @@ def add_rolling_features(
             "GoalDiff_Side_Roll5": "Away_Away_GoalDiff_Roll5",
             "RestDays": "Away_RestDays",
             "SideRestDays": "Away_Away_RestDays",
+            "Matches_Last7": "Away_Matches_Last7",
+            "Matches_Last14": "Away_Matches_Last14",
             **{
                 f"{metric}_Roll5": f"Away_{metric}_Roll5"
                 for metric in TEAM_MATCH_STAT_METRICS
@@ -2003,8 +2575,11 @@ def add_rolling_features(
     data["Venue_RestDays_Diff"] = (
         data["Home_Home_RestDays"] - data["Away_Away_RestDays"]
     )
+    data = add_match_timing_features(data)
+    data = add_rest_context_features(data)
     data = add_match_stats_interaction_features(data)
     data = add_xg_interaction_features(data)
+    data = add_league_context_features(data)
 
     if feature_profile not in {"base", "extended"}:
         raise ValueError("feature_profile deve ser 'base' ou 'extended'.")
@@ -2082,12 +2657,19 @@ def add_rolling_features(
     extended_feature_cols.extend(MATCH_STATS_FEATURE_COLS)
     extended_feature_cols.extend(REFEREE_FEATURE_COLS)
     extended_feature_cols.extend(ODDS_MOVEMENT_FEATURE_COLS)
+    extended_feature_cols.extend(MARKET_QUALITY_FEATURE_COLS)
+    extended_feature_cols.extend(SCHEDULE_FEATURE_COLS)
+    extended_feature_cols.extend(ASIAN_HANDICAP_FEATURE_COLS)
     extended_feature_cols.extend(XG_FEATURE_COLS)
+    extended_feature_cols.extend(LEAGUE_CONTEXT_FEATURE_COLS)
 
     feature_cols = base_feature_cols.copy()
     if feature_profile == "extended":
         feature_cols.extend(extended_feature_cols)
     feature_cols.extend([col for col in ELO_FEATURE_COLS if col in data.columns])
+    feature_cols.extend(
+        [col for col in TEAM_STRENGTH_FEATURE_COLS if col in data.columns]
+    )
 
     return data, feature_cols
 

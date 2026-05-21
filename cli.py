@@ -69,6 +69,24 @@ def parse_args() -> PipelineConfig:
         help="Forca novo download do cache de xG do Understat.",
     )
     parser.add_argument(
+        "--use-clubelo",
+        action="store_true",
+        help=(
+            "Usa ClubElo como fonte externa de forca dos times. Quando "
+            "indisponivel, o Elo interno continua sendo usado."
+        ),
+    )
+    parser.add_argument(
+        "--clubelo-cache-dir",
+        default="raw_data/clubelo",
+        help="Pasta de cache para historicos ClubElo por clube.",
+    )
+    parser.add_argument(
+        "--force-refresh-clubelo",
+        action="store_true",
+        help="Forca novo download do cache ClubElo.",
+    )
+    parser.add_argument(
         "--rolling-window",
         type=int,
         default=5,
@@ -121,6 +139,41 @@ def parse_args() -> PipelineConfig:
         type=int,
         default=5,
         help="Numero de janelas walk-forward. Use 0 para desativar.",
+    )
+    parser.add_argument(
+        "--walk-forward-initial-train-fraction",
+        type=float,
+        default=0.50,
+        help=(
+            "Percentual inicial de datas usado para o primeiro treino "
+            "walk-forward."
+        ),
+    )
+    parser.add_argument(
+        "--walk-forward-min-test-rows",
+        type=int,
+        default=200,
+        help="Minimo de jogos exigido em cada bloco de teste walk-forward.",
+    )
+    parser.add_argument(
+        "--no-time-decay-weights",
+        action="store_true",
+        help="Desativa pesos temporais no treino do XGBoost.",
+    )
+    parser.add_argument(
+        "--time-decay-half-life-days",
+        type=float,
+        default=540.0,
+        help=(
+            "Meia-vida dos pesos temporais em dias. Valores menores favorecem "
+            "mais os jogos recentes."
+        ),
+    )
+    parser.add_argument(
+        "--min-time-decay-weight",
+        type=float,
+        default=0.20,
+        help="Peso minimo bruto antes da normalizacao temporal.",
     )
     parser.add_argument(
         "--stake",
@@ -304,6 +357,9 @@ def parse_args() -> PipelineConfig:
         understat_xg_dir=Path(args.understat_xg_dir),
         use_understat_xg=not args.no_understat_xg,
         force_refresh_understat_xg=args.force_refresh_understat_xg,
+        clubelo_cache_dir=Path(args.clubelo_cache_dir),
+        use_clubelo=args.use_clubelo,
+        force_refresh_clubelo=args.force_refresh_clubelo,
         rolling_window=args.rolling_window,
         train_size=args.train_size,
         split_strategy=args.split_strategy,
@@ -312,6 +368,13 @@ def parse_args() -> PipelineConfig:
         calibration_size=args.calibration_size,
         calibration_method=args.calibration_method,
         walk_forward_splits=args.walk_forward_splits,
+        walk_forward_initial_train_fraction=(
+            args.walk_forward_initial_train_fraction
+        ),
+        walk_forward_min_test_rows=args.walk_forward_min_test_rows,
+        use_time_decay_weights=not args.no_time_decay_weights,
+        time_decay_half_life_days=args.time_decay_half_life_days,
+        min_time_decay_weight=args.min_time_decay_weight,
         stake=args.stake,
         kelly_bankroll=args.kelly_bankroll,
         kelly_fraction=args.kelly_fraction,

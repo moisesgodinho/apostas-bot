@@ -37,6 +37,7 @@ from data_pipeline import (
     OVER_CANDIDATES,
     UNDER_CANDIDATES,
     add_no_vig_market_probabilities,
+    add_market_quality_features,
     add_odds_movement_features,
     coalesce_numeric_columns,
     parse_match_datetime,
@@ -105,6 +106,18 @@ BOOKMAKER_TOTALS_COLUMNS = {
         "Under 2.5": ["PC<2.5", "P<2.5"],
     },
 }
+BOOKMAKER_NAME_ALIASES = {
+    "bet365": "Bet365",
+    "betfair exchange": "Betfair Exchange",
+    "betfair sportsbook": "Betfair Sportsbook",
+    "betmgm": "BetMGM",
+    "betvictor": "BetVictor",
+    "betway": "Betway",
+    "betano": "Betano",
+    "coral": "Coral",
+    "ladbrokes": "Ladbrokes",
+    "pinnacle": "Pinnacle",
+}
 
 BEST_SELECTION_COLUMNS = {
     "Casa": ("Best_Odd_H", "Best_Bookmaker_H"),
@@ -112,6 +125,13 @@ BEST_SELECTION_COLUMNS = {
     "Fora": ("Best_Odd_A", "Best_Bookmaker_A"),
     "Over 2.5": ("Best_Odd_Over25", "Best_Bookmaker_Over25"),
     "Under 2.5": ("Best_Odd_Under25", "Best_Bookmaker_Under25"),
+}
+SELECTED_SELECTION_COLUMNS = {
+    "Casa": ("Selected_Odd_H", "Selected_Bookmaker_H"),
+    "Empate": ("Selected_Odd_D", "Selected_Bookmaker_D"),
+    "Fora": ("Selected_Odd_A", "Selected_Bookmaker_A"),
+    "Over 2.5": ("Selected_Odd_Over25", "Selected_Bookmaker_Over25"),
+    "Under 2.5": ("Selected_Odd_Under25", "Selected_Bookmaker_Under25"),
 }
 LEAGUE_TIMEZONE_MAP = {
     "E0": "Europe/London",
@@ -133,6 +153,87 @@ LEAGUE_TIMEZONE_MAP = {
     "BRA": "America/Sao_Paulo",
 }
 BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
+
+
+def canonical_bookmaker_name(bookmaker: str | None) -> str | None:
+    """Normaliza o nome da casa para uma chave canonica."""
+    if bookmaker is None:
+        return None
+    normalized = str(bookmaker).strip().lower()
+    return BOOKMAKER_NAME_ALIASES.get(normalized)
+
+
+def bookmaker_is_supported(bookmaker: str | None) -> bool:
+    """Indica se a casa existe no mapeamento atual da fonte."""
+    canonical = canonical_bookmaker_name(bookmaker)
+    if canonical is None:
+        return False
+    return canonical in BOOKMAKER_1X2_COLUMNS or canonical in BOOKMAKER_TOTALS_COLUMNS
+
+
+def add_selected_bookmaker_odds(
+    fixtures: pd.DataFrame,
+    preferred_bookmaker: str | None = None,
+) -> pd.DataFrame:
+    """Resolve as odds que serao usadas nos palpites futuros.
+
+    Quando uma casa preferida e informada, as colunas `Selected_*` usam apenas
+    as odds dessa casa. Sem preferencia, elas apontam para a melhor odd
+    disponivel no dataset.
+    """
+    enriched = fixtures.copy()
+    canonical = canonical_bookmaker_name(preferred_bookmaker)
+    supported = bookmaker_is_supported(preferred_bookmaker)
+    requested = canonical or (
+        str(preferred_bookmaker).strip() if preferred_bookmaker else "Melhor disponivel"
+    )
+
+    enriched["RequestedBookmaker"] = requested
+    enriched["UsesPreferredBookmaker"] = bool(preferred_bookmaker)
+    enriched["RequestedBookmakerSupported"] = float(supported)
+
+    if not preferred_bookmaker:
+        for selection, (selected_odd_col, selected_bookmaker_col) in (
+            SELECTED_SELECTION_COLUMNS.items()
+        ):
+            best_odd_col, best_bookmaker_col = BEST_SELECTION_COLUMNS[selection]
+            enriched[selected_odd_col] = pd.to_numeric(
+                enriched[best_odd_col],
+                errors="coerce",
+            )
+            enriched[selected_bookmaker_col] = enriched[best_bookmaker_col].fillna("")
+        return enriched
+
+    one_x_two_columns = BOOKMAKER_1X2_COLUMNS.get(canonical, {})
+    totals_columns = BOOKMAKER_TOTALS_COLUMNS.get(canonical, {})
+
+    for selection in ["Casa", "Empate", "Fora"]:
+        selected_odd_col, selected_bookmaker_col = SELECTED_SELECTION_COLUMNS[selection]
+        columns = one_x_two_columns.get(selection, [])
+        enriched[selected_odd_col] = enriched.apply(
+            lambda row: _first_valid_odd(row, columns),
+            axis=1,
+        )
+        enriched[selected_bookmaker_col] = np.where(
+            pd.to_numeric(enriched[selected_odd_col], errors="coerce").notna(),
+            requested,
+            "",
+        )
+
+    for selection in ["Over 2.5", "Under 2.5"]:
+        selected_odd_col, selected_bookmaker_col = SELECTED_SELECTION_COLUMNS[selection]
+        columns = totals_columns.get(selection, [])
+        enriched[selected_odd_col] = enriched.apply(
+            lambda row: _first_valid_odd(row, columns),
+            axis=1,
+        )
+        enriched[selected_bookmaker_col] = np.where(
+            pd.to_numeric(enriched[selected_odd_col], errors="coerce").notna(),
+            requested,
+            "",
+        )
+
+    return enriched
 
 
 def download_fixtures_if_needed(
@@ -318,6 +419,7 @@ def load_upcoming_fixtures(
     leagues: Sequence[str],
     days_ahead: int = 7,
     force_refresh: bool = False,
+    preferred_bookmaker: str | None = None,
 ) -> pd.DataFrame:
     """Carrega fixtures futuras do Football-Data com odds normalizadas."""
     file_path = download_fixtures_if_needed(
@@ -390,7 +492,12 @@ def load_upcoming_fixtures(
     )
     fixtures = add_no_vig_market_probabilities(fixtures)
     fixtures = add_odds_movement_features(fixtures)
+    fixtures = add_market_quality_features(fixtures)
     fixtures = add_best_bookmaker_odds(fixtures)
+    fixtures = add_selected_bookmaker_odds(
+        fixtures,
+        preferred_bookmaker=preferred_bookmaker,
+    )
 
     print(
         "[fixtures] Jogos futuros carregados: "

@@ -9,6 +9,16 @@ from typing import Sequence
 
 BASE_URL = "https://www.football-data.co.uk/mmz4281/{season}/{league}.csv"
 FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
+
+
+def _season_code_range(start_year: int, end_start_year: int) -> list[str]:
+    """Monta codigos de temporada no formato football-data, ex: 0506."""
+    return [
+        f"{year % 100:02d}{(year + 1) % 100:02d}"
+        for year in range(start_year, end_start_year + 1)
+    ]
+
+
 DEFAULT_LEAGUES = [
     "E0",
     "E1",
@@ -31,7 +41,7 @@ DEFAULT_LEAGUES = [
 EXTRA_LEAGUE_URLS = {
     "BRA": "https://www.football-data.co.uk/new/BRA.csv",
 }
-DEFAULT_SEASONS = ["1920", "2021", "2122", "2223", "2324", "2425", "2526"]
+DEFAULT_SEASONS = _season_code_range(2005, 2025)
 TARGET_COL = "Over25"
 RESULT_TARGET_COL = "ResultTarget"
 RESULT_LABELS = ["H", "D", "A"]
@@ -74,6 +84,29 @@ class PipelineConfig:
     understat_xg_dir: Path = Path("raw_data/understat_xg")
     use_understat_xg: bool = True
     force_refresh_understat_xg: bool = False
+    clubelo_cache_dir: Path = Path("raw_data/clubelo")
+    use_clubelo: bool = False
+    force_refresh_clubelo: bool = False
+    clubelo_leagues: Sequence[str] = field(
+        default_factory=lambda: [
+            "E0",
+            "E1",
+            "SC0",
+            "D1",
+            "D2",
+            "SP1",
+            "SP2",
+            "I1",
+            "I2",
+            "F1",
+            "F2",
+            "N1",
+            "P1",
+            "B1",
+            "G1",
+            "T1",
+        ]
+    )
     rolling_window: int = 5
     train_size: float = 0.80
     split_strategy: str = "season"
@@ -82,6 +115,11 @@ class PipelineConfig:
     calibration_size: float = 0.20
     calibration_method: str = "sigmoid"
     walk_forward_splits: int = 5
+    walk_forward_initial_train_fraction: float = 0.50
+    walk_forward_min_test_rows: int = 200
+    use_time_decay_weights: bool = True
+    time_decay_half_life_days: float = 540.0
+    min_time_decay_weight: float = 0.20
     stake: float = 10.0
     kelly_bankroll: float = 1000.0
     kelly_fraction: float = 0.25
@@ -106,6 +144,7 @@ class PipelineConfig:
     use_optimized_filters_for_upcoming: bool = True
     min_optimized_eval_roi: float = 0.0
     min_optimized_eval_bets: int = 10
+    preferred_bookmaker: str | None = None
     feature_profile: str = "extended"
     xgb_tuning_trials: int = 0
     xgb_tuning_validation_size: float = 0.20

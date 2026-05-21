@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from clubelo import add_team_strength_features
 from config import (
     NO_VIG_AWAY_COL,
     NO_VIG_DRAW_COL,
@@ -35,9 +36,11 @@ from backtesting import (
     run_match_result_backtest,
     run_match_result_walk_forward_validation,
     run_under25_backtest,
+    run_under25_walk_forward_validation,
     run_walk_forward_validation,
     run_win_backtest,
     run_win_walk_forward_validation,
+    summarize_walk_forward_stability,
 )
 from data_pipeline import (
     add_elo_features,
@@ -53,8 +56,10 @@ from filter_optimizer import (
 from modeling import (
     blend_probabilities,
     build_calibration_curve_frame,
+    build_time_decay_sample_weights,
     evaluate_match_result_model,
     evaluate_model,
+    summarize_sample_weights,
     summarize_calibration_curve,
     tune_probability_blend,
     train_calibrated_xgboost_model,
@@ -194,6 +199,35 @@ def prepare_market_dataset(
     return market_data.reset_index(drop=True), model_cols
 
 
+def build_training_weights(
+    train_data: pd.DataFrame,
+    market: str,
+    config: PipelineConfig,
+) -> tuple[pd.DataFrame, object | None]:
+    """Calcula pesos temporais do treino e resumo para auditoria."""
+    if not config.use_time_decay_weights:
+        return pd.DataFrame(), None
+
+    weights = build_time_decay_sample_weights(
+        train_data["MatchDatetime"],
+        half_life_days=config.time_decay_half_life_days,
+        min_weight=config.min_time_decay_weight,
+    )
+    summary = summarize_sample_weights(
+        train_data["MatchDatetime"],
+        weights,
+        market,
+        half_life_days=config.time_decay_half_life_days,
+        min_weight=config.min_time_decay_weight,
+    )
+    print(
+        "[pesos] "
+        f"{market}: meia-vida {config.time_decay_half_life_days:.0f} dias, "
+        f"peso min/max {weights.min():.2f}/{weights.max():.2f}"
+    )
+    return summary, weights
+
+
 def run_pipeline(config: PipelineConfig) -> None:
     """Executa a esteira completa de ponta a ponta."""
     raw_data = load_football_data(config.leagues, config.seasons, config.raw_dir)
@@ -209,6 +243,15 @@ def run_pipeline(config: PipelineConfig) -> None:
         initial_rating=config.elo_initial,
         k_factor=config.elo_k_factor,
         home_advantage=config.elo_home_advantage,
+    )
+    prepared_data = add_team_strength_features(
+        prepared_data,
+        cache_dir=config.clubelo_cache_dir,
+        enabled=config.use_clubelo,
+        force_refresh=config.force_refresh_clubelo,
+        supported_leagues=config.clubelo_leagues,
+        home_advantage=config.elo_home_advantage,
+        fallback_rating=config.elo_initial,
     )
     featured_data, feature_cols = add_rolling_features(
         prepared_data,
@@ -230,6 +273,8 @@ def run_pipeline(config: PipelineConfig) -> None:
     realistic_bet_frames = []
     realistic_monthly_frames = []
     realistic_league_frames = []
+    walk_forward_frames = []
+    time_decay_frames = []
 
     totals_markets = {"over25", "under25"}.intersection(config.markets)
     if totals_markets:
@@ -250,6 +295,13 @@ def run_pipeline(config: PipelineConfig) -> None:
             )
 
             print("[modelo] Treinando XGBClassifier Over 2.5 calibrado...")
+            time_decay_summary, sample_weight = build_training_weights(
+                split.train_data,
+                "Total Gols 2.5",
+                config,
+            )
+            if not time_decay_summary.empty:
+                time_decay_frames.append(time_decay_summary)
             model = train_calibrated_xgboost_model(
                 split.x_train,
                 split.y_train,
@@ -257,6 +309,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.calibration_method,
                 config.xgb_tuning_trials,
                 config.xgb_tuning_validation_size,
+                sample_weight=sample_weight,
             )
             feature_importance, tuning_summary = build_model_artifact_frames(
                 model,
@@ -435,21 +488,47 @@ def run_pipeline(config: PipelineConfig) -> None:
                 )
                 print(f"\n[saida] Backtest Under 2.5 salvo em: {under_output_path}")
 
-            walk_forward_summary = run_walk_forward_validation(
-                over_data,
-                over_feature_cols,
-                config,
-            )
-            if not walk_forward_summary.empty:
-                walk_forward_path = (
-                    config.output_dir / "walk_forward_over25_summary.csv"
+            if "over25" in config.markets:
+                walk_forward_summary = run_walk_forward_validation(
+                    over_data,
+                    over_feature_cols,
+                    config,
                 )
-                walk_forward_summary.to_csv(
-                    walk_forward_path,
-                    index=False,
-                    encoding="utf-8-sig",
+                if not walk_forward_summary.empty:
+                    walk_forward_path = (
+                        config.output_dir / "walk_forward_over25_summary.csv"
+                    )
+                    walk_forward_summary.to_csv(
+                        walk_forward_path,
+                        index=False,
+                        encoding="utf-8-sig",
+                    )
+                    walk_forward_frames.append(walk_forward_summary)
+                    print(
+                        "[saida] Walk-forward Over 2.5 salvo em: "
+                        f"{walk_forward_path}"
+                    )
+
+            if "under25" in config.markets:
+                under_walk_forward_summary = run_under25_walk_forward_validation(
+                    over_data,
+                    over_feature_cols,
+                    config,
                 )
-                print(f"[saida] Walk-forward Over 2.5 salvo em: {walk_forward_path}")
+                if not under_walk_forward_summary.empty:
+                    under_walk_forward_path = (
+                        config.output_dir / "walk_forward_under25_summary.csv"
+                    )
+                    under_walk_forward_summary.to_csv(
+                        under_walk_forward_path,
+                        index=False,
+                        encoding="utf-8-sig",
+                    )
+                    walk_forward_frames.append(under_walk_forward_summary)
+                    print(
+                        "[saida] Walk-forward Under 2.5 salvo em: "
+                        f"{under_walk_forward_path}"
+                    )
 
             if config.run_model_comparison:
                 comparison_frames.append(
@@ -481,6 +560,13 @@ def run_pipeline(config: PipelineConfig) -> None:
             )
 
             print("[modelo] Treinando XGBClassifier Resultado Final 1X2 calibrado...")
+            time_decay_summary, sample_weight = build_training_weights(
+                result_split.train_data,
+                "Resultado 1X2 / Vitoria",
+                config,
+            )
+            if not time_decay_summary.empty:
+                time_decay_frames.append(time_decay_summary)
             result_model = train_calibrated_xgboost_model(
                 result_split.x_train,
                 result_split.y_train,
@@ -488,6 +574,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.calibration_method,
                 config.xgb_tuning_trials,
                 config.xgb_tuning_validation_size,
+                sample_weight=sample_weight,
             )
             feature_importance, tuning_summary = build_model_artifact_frames(
                 result_model,
@@ -620,6 +707,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                         index=False,
                         encoding="utf-8-sig",
                     )
+                    walk_forward_frames.append(result_walk_forward_summary)
                     print(
                         "[saida] Walk-forward 1X2 salvo em: "
                         f"{result_walk_forward_path}"
@@ -712,6 +800,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                         index=False,
                         encoding="utf-8-sig",
                     )
+                    walk_forward_frames.append(win_walk_forward_summary)
                     print(
                         "[saida] Walk-forward Vitoria salvo em: "
                         f"{win_walk_forward_path}"
@@ -728,6 +817,36 @@ def run_pipeline(config: PipelineConfig) -> None:
                         include_win="win" in config.markets,
                     )
                 )
+
+    walk_forward_frames = [frame for frame in walk_forward_frames if not frame.empty]
+    if walk_forward_frames:
+        walk_forward_summary = pd.concat(
+            walk_forward_frames,
+            ignore_index=True,
+        )
+        walk_forward_path = config.output_dir / "walk_forward_summary.csv"
+        walk_forward_summary.to_csv(
+            walk_forward_path,
+            index=False,
+            encoding="utf-8-sig",
+        )
+        walk_forward_stability = summarize_walk_forward_stability(
+            walk_forward_summary
+        )
+        if not walk_forward_stability.empty:
+            walk_forward_stability_path = (
+                config.output_dir / "walk_forward_stability_summary.csv"
+            )
+            walk_forward_stability.to_csv(
+                walk_forward_stability_path,
+                index=False,
+                encoding="utf-8-sig",
+            )
+            print(
+                "[saida] Estabilidade walk-forward salva em: "
+                f"{walk_forward_stability_path}"
+            )
+        print(f"[saida] Walk-forward consolidado salvo em: {walk_forward_path}")
 
     comparison_frames = [frame for frame in comparison_frames if not frame.empty]
     if comparison_frames:
@@ -815,6 +934,17 @@ def run_pipeline(config: PipelineConfig) -> None:
             encoding="utf-8-sig",
         )
         print(f"[saida] Importancia de features salva em: {feature_importance_path}")
+
+    time_decay_frames = [frame for frame in time_decay_frames if not frame.empty]
+    if time_decay_frames:
+        time_decay_summary = pd.concat(time_decay_frames, ignore_index=True)
+        time_decay_path = config.output_dir / "time_decay_weight_summary.csv"
+        time_decay_summary.to_csv(
+            time_decay_path,
+            index=False,
+            encoding="utf-8-sig",
+        )
+        print(f"[saida] Pesos temporais salvos em: {time_decay_path}")
 
     tuning_summary_frames = [
         frame for frame in tuning_summary_frames if not frame.empty

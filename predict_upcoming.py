@@ -9,6 +9,7 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
+from clubelo import add_team_strength_features
 from config import (
     DEFAULT_LEAGUES,
     DEFAULT_SEASONS,
@@ -29,11 +30,15 @@ from config import (
     TARGET_COL,
 )
 from data_pipeline import (
+    add_asian_handicap_features,
     add_elo_features,
     add_elo_features_to_fixtures,
+    add_league_context_features,
     add_lineup_features,
     add_match_stats_interaction_features,
     add_match_importance_features,
+    add_match_timing_features,
+    add_rest_context_features,
     add_rolling_features,
     add_referee_features_to_fixtures,
     add_xg_interaction_features,
@@ -48,6 +53,7 @@ from data_pipeline import (
     VENUE_XG_METRICS,
 )
 from fixtures import (
+    bookmaker_is_supported,
     build_bookmaker_odds_long,
     has_over_under_odds,
     has_result_odds,
@@ -55,7 +61,7 @@ from fixtures import (
     load_upcoming_fixtures,
 )
 from filter_optimizer import load_positive_filter_rules
-from modeling import train_calibrated_xgboost_model
+from modeling import build_time_decay_sample_weights, train_calibrated_xgboost_model
 from pipeline import (
     OVER_MARKET_FEATURES,
     RESULT_MARKET_FEATURES,
@@ -66,6 +72,7 @@ from understat_xg import merge_understat_xg_features
 
 UPCOMING_PREDICTIONS_FILE = "upcoming_predictions.csv"
 UPCOMING_ODDS_FILE = "upcoming_odds_by_bookmaker.csv"
+UPCOMING_CONTEXT_FILE = "upcoming_context_summary.csv"
 FilterRule = dict[str, float | str | None]
 EMPTY_UPCOMING_PREDICTION_COLUMNS = [
     "FixtureId",
@@ -82,6 +89,8 @@ EMPTY_UPCOMING_PREDICTION_COLUMNS = [
     "Edge",
     "BestOdd",
     "BestBookmaker",
+    "RequestedBookmaker",
+    "PreferredBookmakerAvailable",
     "IsValueBet",
 ]
 EMPTY_UPCOMING_ODDS_COLUMNS = [
@@ -149,6 +158,22 @@ def _days_since_before_fixture(
 
     days = (fixture_datetime - previous_matches.iloc[-1]["MatchDatetime"]).days
     return float(min(max(days, 0), max_days))
+
+
+def _recent_match_count_before_fixture(
+    team_history: pd.DataFrame,
+    team: str,
+    fixture_datetime: pd.Timestamp,
+    days: int,
+) -> float:
+    """Conta jogos de um time nos ultimos N dias antes da fixture."""
+    start_datetime = fixture_datetime - pd.Timedelta(days=days)
+    mask = (
+        team_history["Team"].eq(team)
+        & team_history["MatchDatetime"].lt(fixture_datetime)
+        & team_history["MatchDatetime"].ge(start_datetime)
+    )
+    return float(mask.sum())
 
 
 def _fixture_form_features(
@@ -306,6 +331,18 @@ def _fixture_form_features(
             fixture_datetime,
             side="home",
         ),
+        "Home_Matches_Last7": _recent_match_count_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            7,
+        ),
+        "Home_Matches_Last14": _recent_match_count_before_fixture(
+            team_history,
+            home_team,
+            fixture_datetime,
+            14,
+        ),
         "Away_GF_Roll5": _rolling_mean_before_fixture(
             team_history,
             away_team,
@@ -449,6 +486,18 @@ def _fixture_form_features(
             away_team,
             fixture_datetime,
             side="away",
+        ),
+        "Away_Matches_Last7": _recent_match_count_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            7,
+        ),
+        "Away_Matches_Last14": _recent_match_count_before_fixture(
+            team_history,
+            away_team,
+            fixture_datetime,
+            14,
         ),
     }
     for metric in TEAM_MATCH_STAT_METRICS:
@@ -622,8 +671,43 @@ def add_upcoming_rolling_features(
     ]
     feature_frame = pd.DataFrame(feature_rows, index=fixtures.index)
     featured_fixtures = pd.concat([fixtures.copy(), feature_frame], axis=1)
+    featured_fixtures = add_match_timing_features(featured_fixtures)
+    featured_fixtures = add_rest_context_features(featured_fixtures)
     featured_fixtures = add_match_stats_interaction_features(featured_fixtures)
     featured_fixtures = add_xg_interaction_features(featured_fixtures)
+    featured_fixtures = add_asian_handicap_features(featured_fixtures)
+
+    latest_season_map = (
+        historical_data.dropna(subset=["Liga", "Temporada", "MatchDatetime"])
+        .sort_values(["Liga", "MatchDatetime"], kind="mergesort")
+        .groupby("Liga", sort=False)["Temporada"]
+        .last()
+        .astype(str)
+        .to_dict()
+    )
+    featured_fixtures = featured_fixtures.copy()
+    featured_fixtures["Temporada"] = featured_fixtures["Liga"].map(
+        latest_season_map
+    ).fillna(featured_fixtures["Temporada"].astype(str))
+    featured_fixtures["_IsUpcomingFixture"] = 1.0
+
+    historical_with_flag = historical_data.copy()
+    historical_with_flag["_IsUpcomingFixture"] = 0.0
+    union_columns = sorted(
+        set(historical_with_flag.columns).union(featured_fixtures.columns)
+    )
+    combined = pd.concat(
+        [
+            historical_with_flag.reindex(columns=union_columns),
+            featured_fixtures.reindex(columns=union_columns),
+        ],
+        ignore_index=True,
+        sort=False,
+    )
+    combined = add_league_context_features(combined)
+    featured_fixtures = combined[
+        combined["_IsUpcomingFixture"].eq(1.0)
+    ].drop(columns="_IsUpcomingFixture")
     return featured_fixtures.dropna(subset=list(feature_cols)).copy()
 
 
@@ -742,6 +826,16 @@ def _base_prediction_columns(row: pd.Series) -> dict[str, object]:
         "Elo_Diff": row.get("Elo_Diff", np.nan),
         "Elo_Home_Adv_Diff": row.get("Elo_Home_Adv_Diff", np.nan),
         "Elo_Expected_Home": row.get("Elo_Expected_Home", np.nan),
+        "Home_TeamStrength": row.get("Home_TeamStrength", np.nan),
+        "Away_TeamStrength": row.get("Away_TeamStrength", np.nan),
+        "TeamStrength_Diff": row.get("TeamStrength_Diff", np.nan),
+        "TeamStrength_Expected_Home": row.get(
+            "TeamStrength_Expected_Home",
+            np.nan,
+        ),
+        "ClubElo_DataAvailable": row.get("ClubElo_DataAvailable", np.nan),
+        "Home_ClubElo_Pre": row.get("Home_ClubElo_Pre", np.nan),
+        "Away_ClubElo_Pre": row.get("Away_ClubElo_Pre", np.nan),
         "Home_PreMatch_Rank": row.get("Home_PreMatch_Rank", np.nan),
         "Away_PreMatch_Rank": row.get("Away_PreMatch_Rank", np.nan),
         "MatchImportance": row.get("MatchImportance", np.nan),
@@ -770,6 +864,16 @@ def _base_prediction_columns(row: pd.Series) -> dict[str, object]:
         "Corners_Total_Roll5": row.get("Corners_Total_Roll5", np.nan),
         "Over25_ImpliedMove": row.get("Over25_ImpliedMove", np.nan),
         "Result_ClosingAvailable": row.get("Result_ClosingAvailable", np.nan),
+        "Odds_Quality_Total": row.get("Odds_Quality_Total", np.nan),
+        "Odds_Quality_Result": row.get("Odds_Quality_Result", np.nan),
+        "Totals_MaxAvgGap": row.get("Totals_MaxAvgGap", np.nan),
+        "Result_MaxAvgGap": row.get("Result_MaxAvgGap", np.nan),
+        "Home_Matches_Last7": row.get("Home_Matches_Last7", np.nan),
+        "Away_Matches_Last7": row.get("Away_Matches_Last7", np.nan),
+        "Home_Matches_Last14": row.get("Home_Matches_Last14", np.nan),
+        "Away_Matches_Last14": row.get("Away_Matches_Last14", np.nan),
+        "Home_ShortRest": row.get("Home_ShortRest", np.nan),
+        "Away_ShortRest": row.get("Away_ShortRest", np.nan),
         "Referee_DataAvailable_Roll20": row.get(
             "Referee_DataAvailable_Roll20",
             np.nan,
@@ -851,6 +955,20 @@ def _resolve_filter_rule(
     return optimized_rules.get(market, _default_filter_rule(config, market))
 
 
+def _training_sample_weights(
+    data: pd.DataFrame,
+    config: PipelineConfig,
+) -> np.ndarray | None:
+    """Calcula pesos temporais para modelos finais de palpites futuros."""
+    if not config.use_time_decay_weights:
+        return None
+    return build_time_decay_sample_weights(
+        data["MatchDatetime"],
+        half_life_days=config.time_decay_half_life_days,
+        min_weight=config.min_time_decay_weight,
+    )
+
+
 def _rule_columns(rule: FilterRule) -> dict[str, float | str | None]:
     """Campos de auditoria da regra usada no palpite."""
     return {
@@ -863,6 +981,85 @@ def _rule_columns(rule: FilterRule) -> dict[str, float | str | None]:
     }
 
 
+def _selected_odd_column(selection: str) -> str:
+    """Retorna a coluna da odd usada no palpite."""
+    mapping = {
+        "Over 2.5": "Selected_Odd_Over25",
+        "Under 2.5": "Selected_Odd_Under25",
+        "Casa": "Selected_Odd_H",
+        "Empate": "Selected_Odd_D",
+        "Fora": "Selected_Odd_A",
+    }
+    return mapping[selection]
+
+
+def _selected_bookmaker_column(selection: str) -> str:
+    """Retorna a coluna da casa usada no palpite."""
+    mapping = {
+        "Over 2.5": "Selected_Bookmaker_Over25",
+        "Under 2.5": "Selected_Bookmaker_Under25",
+        "Casa": "Selected_Bookmaker_H",
+        "Empate": "Selected_Bookmaker_D",
+        "Fora": "Selected_Bookmaker_A",
+    }
+    return mapping[selection]
+
+
+def build_upcoming_context_summary(
+    fixtures: pd.DataFrame,
+    predictions: pd.DataFrame,
+    config: PipelineConfig,
+) -> pd.DataFrame:
+    """Resume como as odds futuras foram resolvidas."""
+    requested = config.preferred_bookmaker or "Melhor disponivel"
+    supported = bookmaker_is_supported(config.preferred_bookmaker)
+
+    over_col = _selected_odd_column("Over 2.5")
+    under_col = _selected_odd_column("Under 2.5")
+    home_col = _selected_odd_column("Casa")
+    draw_col = _selected_odd_column("Empate")
+    away_col = _selected_odd_column("Fora")
+
+    totals_available = int(
+        fixtures[[over_col, under_col]].notna().all(axis=1).sum()
+    ) if not fixtures.empty else 0
+    result_available = int(
+        fixtures[[home_col, draw_col, away_col]].notna().all(axis=1).sum()
+    ) if not fixtures.empty else 0
+
+    if fixtures.empty:
+        message = "Nenhum jogo futuro foi encontrado para a janela escolhida."
+    elif config.preferred_bookmaker and not supported:
+        message = (
+            "A fonte atual do Football-Data nao traz odds da casa escolhida. "
+            "Por isso os palpites ficam vazios usando somente essa casa."
+        )
+    elif config.preferred_bookmaker and totals_available + result_available == 0:
+        message = (
+            "A casa escolhida existe no mapeamento, mas nao apareceu nos jogos "
+            "carregados para este periodo."
+        )
+    elif config.preferred_bookmaker:
+        message = "Palpites calculados usando apenas a casa escolhida."
+    else:
+        message = "Palpites calculados usando a melhor odd disponivel."
+
+    return pd.DataFrame(
+        [
+            {
+                "RequestedBookmaker": requested,
+                "UsesPreferredBookmaker": bool(config.preferred_bookmaker),
+                "RequestedBookmakerSupported": float(supported),
+                "FixturesLoaded": int(len(fixtures)),
+                "FixturesWithTotalsOdds": totals_available,
+                "FixturesWithResultOdds": result_available,
+                "PredictionRows": int(len(predictions)),
+                "Message": message,
+            }
+        ]
+    )
+
+
 def score_over25_predictions(
     fixtures: pd.DataFrame,
     model,
@@ -872,7 +1069,9 @@ def score_over25_predictions(
 ) -> pd.DataFrame:
     """Gera palpites futuros para Over 2.5."""
     model_cols = list(feature_cols) + OVER_MARKET_FEATURES
-    required_cols = model_cols + ["Best_Odd_Over25"]
+    odd_col = _selected_odd_column("Over 2.5")
+    bookmaker_col = _selected_bookmaker_column("Over 2.5")
+    required_cols = model_cols + [odd_col]
     mask = has_over_under_odds(fixtures) & fixtures[required_cols].notna().all(axis=1)
     scored = fixtures.loc[mask].copy()
 
@@ -881,11 +1080,11 @@ def score_over25_predictions(
 
     probabilities = _positive_class_probability(model, scored.loc[:, model_cols])
     scored["ModelProb"] = probabilities
-    scored["BestOdd"] = scored["Best_Odd_Over25"]
-    scored["BestBookmaker"] = scored["Best_Bookmaker_Over25"]
+    scored["BestOdd"] = scored[odd_col]
+    scored["BestBookmaker"] = scored[bookmaker_col]
     scored["ImpliedProb"] = implied_probability_from_best_odd(
         scored,
-        "Best_Odd_Over25",
+        odd_col,
     )
     scored["NoVigProb"] = scored[NO_VIG_OVER_COL]
     scored["Edge"] = scored["ModelProb"] - scored["ImpliedProb"]
@@ -918,6 +1117,11 @@ def score_over25_predictions(
                 "ImpliedProb": row["ImpliedProb"],
                 "NoVigProb": row["NoVigProb"],
                 "Edge": row["Edge"],
+                "RequestedBookmaker": row.get(
+                    "RequestedBookmaker",
+                    "Melhor disponivel",
+                ),
+                "PreferredBookmakerAvailable": bool(pd.notna(row[odd_col])),
                 "IsValueBet": row["IsValueBet"],
                 **_rule_columns(filter_rule),
                 "Model_Prob_H": np.nan,
@@ -938,7 +1142,9 @@ def score_under25_predictions(
 ) -> pd.DataFrame:
     """Gera palpites futuros para Under 2.5."""
     model_cols = list(feature_cols) + OVER_MARKET_FEATURES
-    required_cols = model_cols + ["Best_Odd_Under25"]
+    odd_col = _selected_odd_column("Under 2.5")
+    bookmaker_col = _selected_bookmaker_column("Under 2.5")
+    required_cols = model_cols + [odd_col]
     mask = has_over_under_odds(fixtures) & fixtures[required_cols].notna().all(axis=1)
     scored = fixtures.loc[mask].copy()
 
@@ -950,11 +1156,11 @@ def score_under25_predictions(
         scored.loc[:, model_cols],
     )
     scored["ModelProb"] = 1.0 - over_probabilities
-    scored["BestOdd"] = scored["Best_Odd_Under25"]
-    scored["BestBookmaker"] = scored["Best_Bookmaker_Under25"]
+    scored["BestOdd"] = scored[odd_col]
+    scored["BestBookmaker"] = scored[bookmaker_col]
     scored["ImpliedProb"] = implied_probability_from_best_odd(
         scored,
-        "Best_Odd_Under25",
+        odd_col,
     )
     scored["NoVigProb"] = scored[NO_VIG_UNDER_COL]
     scored["Edge"] = scored["ModelProb"] - scored["ImpliedProb"]
@@ -987,6 +1193,11 @@ def score_under25_predictions(
                 "ImpliedProb": row["ImpliedProb"],
                 "NoVigProb": row["NoVigProb"],
                 "Edge": row["Edge"],
+                "RequestedBookmaker": row.get(
+                    "RequestedBookmaker",
+                    "Melhor disponivel",
+                ),
+                "PreferredBookmakerAvailable": bool(pd.notna(row[odd_col])),
                 "IsValueBet": row["IsValueBet"],
                 **_rule_columns(filter_rule),
                 "Model_Prob_H": np.nan,
@@ -1005,9 +1216,14 @@ def _result_selection_frame(
 ) -> pd.DataFrame:
     """Escolhe a melhor selecao do 1X2 por edge."""
     selections = [
-        (0, "Casa", "Best_Odd_H", "Best_Bookmaker_H"),
-        (1, "Empate", "Best_Odd_D", "Best_Bookmaker_D"),
-        (2, "Fora", "Best_Odd_A", "Best_Bookmaker_A"),
+        (0, "Casa", _selected_odd_column("Casa"), _selected_bookmaker_column("Casa")),
+        (
+            1,
+            "Empate",
+            _selected_odd_column("Empate"),
+            _selected_bookmaker_column("Empate"),
+        ),
+        (2, "Fora", _selected_odd_column("Fora"), _selected_bookmaker_column("Fora")),
     ]
     if not include_draw:
         selections = [selection for selection in selections if selection[0] != 1]
@@ -1036,6 +1252,11 @@ def _result_selection_frame(
                     [NO_VIG_HOME_COL, NO_VIG_DRAW_COL, NO_VIG_AWAY_COL][class_index]
                 ],
                 "Edge": edge,
+                "RequestedBookmaker": row.get(
+                    "RequestedBookmaker",
+                    "Melhor disponivel",
+                ),
+                "PreferredBookmakerAvailable": bool(pd.notna(odd)),
                 "ResultIndex": class_index,
                 "Model_Prob_H": probabilities[row_index, 0],
                 "Model_Prob_D": probabilities[row_index, 1],
@@ -1060,7 +1281,16 @@ def score_result_predictions(
 ) -> pd.DataFrame:
     """Gera palpites futuros para Resultado Final 1X2."""
     model_cols = list(feature_cols) + RESULT_MARKET_FEATURES
-    mask = has_result_odds(fixtures) & fixtures[model_cols].notna().all(axis=1)
+    selected_result_cols = [
+        _selected_odd_column("Casa"),
+        _selected_odd_column("Empate"),
+        _selected_odd_column("Fora"),
+    ]
+    mask = (
+        has_result_odds(fixtures)
+        & fixtures[model_cols].notna().all(axis=1)
+        & fixtures[selected_result_cols].notna().any(axis=1)
+    )
     scored = fixtures.loc[mask].copy()
 
     if scored.empty:
@@ -1105,7 +1335,15 @@ def score_win_predictions(
 ) -> pd.DataFrame:
     """Gera palpites futuros apenas para vitoria casa/fora."""
     model_cols = list(feature_cols) + RESULT_MARKET_FEATURES
-    mask = has_result_odds(fixtures) & fixtures[model_cols].notna().all(axis=1)
+    selected_result_cols = [
+        _selected_odd_column("Casa"),
+        _selected_odd_column("Fora"),
+    ]
+    mask = (
+        has_result_odds(fixtures)
+        & fixtures[model_cols].notna().all(axis=1)
+        & fixtures[selected_result_cols].notna().any(axis=1)
+    )
     scored = fixtures.loc[mask].copy()
 
     if scored.empty:
@@ -1165,6 +1403,15 @@ def build_historical_model_data(
         k_factor=config.elo_k_factor,
         home_advantage=config.elo_home_advantage,
     )
+    prepared_data = add_team_strength_features(
+        prepared_data,
+        cache_dir=config.clubelo_cache_dir,
+        enabled=config.use_clubelo,
+        force_refresh=config.force_refresh_clubelo,
+        supported_leagues=config.clubelo_leagues,
+        home_advantage=config.elo_home_advantage,
+        fallback_rating=config.elo_initial,
+    )
     featured_data, feature_cols = add_rolling_features(
         prepared_data,
         window=config.rolling_window,
@@ -1186,11 +1433,13 @@ def generate_upcoming_predictions(
         config.leagues,
         days_ahead=days_ahead,
         force_refresh=force_refresh_fixtures,
+        preferred_bookmaker=config.preferred_bookmaker,
     )
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
     predictions_path = config.output_dir / UPCOMING_PREDICTIONS_FILE
     odds_path = config.output_dir / UPCOMING_ODDS_FILE
+    context_path = config.output_dir / UPCOMING_CONTEXT_FILE
 
     if fixtures.empty:
         pd.DataFrame(columns=EMPTY_UPCOMING_PREDICTION_COLUMNS).to_csv(
@@ -1203,6 +1452,11 @@ def generate_upcoming_predictions(
             index=False,
             encoding="utf-8-sig",
         )
+        build_upcoming_context_summary(
+            fixtures,
+            pd.DataFrame(columns=EMPTY_UPCOMING_PREDICTION_COLUMNS),
+            config,
+        ).to_csv(context_path, index=False, encoding="utf-8-sig")
         print("[fixtures] Nenhum jogo futuro encontrado para os filtros atuais.")
         return pd.DataFrame(), pd.DataFrame()
 
@@ -1217,6 +1471,15 @@ def generate_upcoming_predictions(
         elo_ratings,
         initial_rating=config.elo_initial,
         home_advantage=config.elo_home_advantage,
+    )
+    fixtures = add_team_strength_features(
+        fixtures,
+        cache_dir=config.clubelo_cache_dir,
+        enabled=config.use_clubelo,
+        force_refresh=config.force_refresh_clubelo,
+        supported_leagues=config.clubelo_leagues,
+        home_advantage=config.elo_home_advantage,
+        fallback_rating=config.elo_initial,
     )
     fixtures = add_upcoming_match_importance_features(prepared_data, fixtures)
     fixtures = add_lineup_features(fixtures, config.lineup_features_path)
@@ -1234,6 +1497,11 @@ def generate_upcoming_predictions(
             index=False,
             encoding="utf-8-sig",
         )
+        build_upcoming_context_summary(
+            fixtures,
+            pd.DataFrame(columns=EMPTY_UPCOMING_PREDICTION_COLUMNS),
+            config,
+        ).to_csv(context_path, index=False, encoding="utf-8-sig")
         print("[features] Nenhuma fixture com historico suficiente para prever.")
         return pd.DataFrame(), bookmaker_odds
 
@@ -1270,6 +1538,7 @@ def generate_upcoming_predictions(
                 config.calibration_method,
                 config.xgb_tuning_trials,
                 config.xgb_tuning_validation_size,
+                sample_weight=_training_sample_weights(over_data, config),
             )
             if "over25" in config.markets:
                 prediction_frames.append(
@@ -1310,6 +1579,7 @@ def generate_upcoming_predictions(
                 config.calibration_method,
                 config.xgb_tuning_trials,
                 config.xgb_tuning_validation_size,
+                sample_weight=_training_sample_weights(result_data, config),
             )
             if "result" in config.markets:
                 prediction_frames.append(
@@ -1354,8 +1624,14 @@ def generate_upcoming_predictions(
         predictions = pd.DataFrame()
 
     predictions.to_csv(predictions_path, index=False, encoding="utf-8-sig")
+    build_upcoming_context_summary(
+        fixtures,
+        predictions,
+        config,
+    ).to_csv(context_path, index=False, encoding="utf-8-sig")
     print(f"[saida] Palpites futuros salvos em: {predictions_path}")
     print(f"[saida] Odds por casa salvas em: {odds_path}")
+    print(f"[saida] Resumo da casa usada salvo em: {context_path}")
 
     if not predictions.empty:
         value_bets = int(predictions["IsValueBet"].sum())
@@ -1404,6 +1680,24 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         action="store_true",
         help="Forca novo download do cache de xG do Understat.",
     )
+    parser.add_argument(
+        "--use-clubelo",
+        action="store_true",
+        help=(
+            "Usa ClubElo como fonte externa de forca dos times. Quando "
+            "indisponivel, o Elo interno continua sendo usado."
+        ),
+    )
+    parser.add_argument(
+        "--clubelo-cache-dir",
+        default="raw_data/clubelo",
+        help="Pasta de cache para historicos ClubElo por clube.",
+    )
+    parser.add_argument(
+        "--force-refresh-clubelo",
+        action="store_true",
+        help="Forca novo download do cache ClubElo.",
+    )
     parser.add_argument("--rolling-window", type=int, default=5)
     parser.add_argument("--calibration-size", type=float, default=0.20)
     parser.add_argument(
@@ -1450,9 +1744,34 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         help="Percentual do treino base usado para escolher hiperparametros.",
     )
     parser.add_argument(
+        "--no-time-decay-weights",
+        action="store_true",
+        help="Desativa pesos temporais no treino dos modelos finais.",
+    )
+    parser.add_argument(
+        "--time-decay-half-life-days",
+        type=float,
+        default=540.0,
+        help="Meia-vida dos pesos temporais em dias.",
+    )
+    parser.add_argument(
+        "--min-time-decay-weight",
+        type=float,
+        default=0.20,
+        help="Peso minimo bruto antes da normalizacao temporal.",
+    )
+    parser.add_argument(
         "--ignore-optimized-filters",
         action="store_true",
         help="Usa filtros padrao mesmo se houver regras otimizadas positivas.",
+    )
+    parser.add_argument(
+        "--preferred-bookmaker",
+        default=None,
+        help=(
+            "Casa de aposta que deve ser usada nos palpites futuros. "
+            "Ex.: Betano, Bet365, Pinnacle."
+        ),
     )
     parser.add_argument(
         "--min-optimized-eval-roi",
@@ -1497,6 +1816,9 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         understat_xg_dir=Path(args.understat_xg_dir),
         use_understat_xg=not args.no_understat_xg,
         force_refresh_understat_xg=args.force_refresh_understat_xg,
+        clubelo_cache_dir=Path(args.clubelo_cache_dir),
+        use_clubelo=args.use_clubelo,
+        force_refresh_clubelo=args.force_refresh_clubelo,
         rolling_window=args.rolling_window,
         calibration_size=args.calibration_size,
         calibration_method=args.calibration_method,
@@ -1517,9 +1839,13 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         feature_profile=args.feature_profile,
         xgb_tuning_trials=args.xgb_tuning_trials,
         xgb_tuning_validation_size=args.xgb_tuning_validation_size,
+        use_time_decay_weights=not args.no_time_decay_weights,
+        time_decay_half_life_days=args.time_decay_half_life_days,
+        min_time_decay_weight=args.min_time_decay_weight,
         use_optimized_filters_for_upcoming=not args.ignore_optimized_filters,
         min_optimized_eval_roi=args.min_optimized_eval_roi,
         min_optimized_eval_bets=args.min_optimized_eval_bets,
+        preferred_bookmaker=args.preferred_bookmaker,
     )
     return config, args.days_ahead, args.force_refresh_fixtures
 
