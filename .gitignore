@@ -33,6 +33,7 @@ raw_data/clubelo/
 
 # Temporary experiment outputs
 outputs_blend_test/
+outputs/upcoming_artifacts/
 
 # Editors/OS
 .vscode/

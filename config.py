@@ -145,6 +145,7 @@ class PipelineConfig:
     min_optimized_eval_roi: float = 0.0
     min_optimized_eval_bets: int = 10
     preferred_bookmaker: str | None = None
+    allow_bookmaker_fallback: bool = True
     feature_profile: str = "extended"
     xgb_tuning_trials: int = 0
     xgb_tuning_validation_size: float = 0.20

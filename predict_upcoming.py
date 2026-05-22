@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
 import pandas as pd
@@ -73,6 +73,10 @@ from understat_xg import merge_understat_xg_features
 UPCOMING_PREDICTIONS_FILE = "upcoming_predictions.csv"
 UPCOMING_ODDS_FILE = "upcoming_odds_by_bookmaker.csv"
 UPCOMING_CONTEXT_FILE = "upcoming_context_summary.csv"
+UPCOMING_ARTIFACTS_DIR = "upcoming_artifacts"
+UPCOMING_CONTEXT_BUNDLE_FILE = "historical_context.pkl.gz"
+UPCOMING_TOTALS_MODEL_FILE = "totals_model.pkl"
+UPCOMING_RESULT_MODEL_FILE = "result_model.pkl"
 FilterRule = dict[str, float | str | None]
 EMPTY_UPCOMING_PREDICTION_COLUMNS = [
     "FixtureId",
@@ -106,6 +110,175 @@ EMPTY_UPCOMING_ODDS_COLUMNS = [
     "Bookmaker",
     "Odd",
 ]
+
+
+def artifact_dir(output_dir: Path) -> Path:
+    """Retorna a pasta dos artefatos reutilizaveis de palpites."""
+    return output_dir / UPCOMING_ARTIFACTS_DIR
+
+
+def build_artifact_signature(config: PipelineConfig) -> dict[str, Any]:
+    """Resume configuracoes que precisam bater para reuso dos artefatos."""
+    return {
+        "leagues": list(config.leagues),
+        "seasons": list(config.seasons),
+        "feature_profile": str(config.feature_profile),
+        "rolling_window": int(config.rolling_window),
+        "use_understat_xg": bool(config.use_understat_xg),
+        "use_clubelo": bool(config.use_clubelo),
+        "elo_initial": float(config.elo_initial),
+        "elo_k_factor": float(config.elo_k_factor),
+        "elo_home_advantage": float(config.elo_home_advantage),
+        "lineup_features_path": (
+            str(config.lineup_features_path) if config.lineup_features_path else ""
+        ),
+        "calibration_size": float(config.calibration_size),
+        "calibration_method": str(config.calibration_method),
+        "xgb_tuning_trials": int(config.xgb_tuning_trials),
+        "xgb_tuning_validation_size": float(config.xgb_tuning_validation_size),
+        "use_time_decay_weights": bool(config.use_time_decay_weights),
+        "time_decay_half_life_days": float(config.time_decay_half_life_days),
+        "min_time_decay_weight": float(config.min_time_decay_weight),
+    }
+
+
+def _validate_artifact_signature(
+    expected: dict[str, Any],
+    actual: dict[str, Any],
+    label: str,
+) -> None:
+    """Garante que o artefato salvo corresponde ao recorte atual."""
+    mismatches = [
+        key
+        for key, expected_value in expected.items()
+        if actual.get(key) != expected_value
+    ]
+    if not mismatches:
+        return
+
+    mismatch_text = ", ".join(mismatches[:6])
+    if len(mismatches) > 6:
+        mismatch_text += f" +{len(mismatches) - 6}"
+    raise ValueError(
+        f"Artefato salvo de {label} nao bate com a configuracao atual: "
+        f"{mismatch_text}. Rode a geracao completa uma vez para atualizar."
+    )
+
+
+def save_upcoming_prediction_artifacts(
+    config: PipelineConfig,
+    prepared_data: pd.DataFrame,
+    feature_cols: Sequence[str],
+    elo_ratings: dict[str, float],
+    totals_model=None,
+    result_model=None,
+) -> None:
+    """Salva contexto historico e modelos finais para palpites rapidos."""
+    target_dir = artifact_dir(config.output_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    signature = build_artifact_signature(config)
+
+    context_bundle = {
+        "signature": signature,
+        "prepared_data": prepared_data,
+        "feature_cols": list(feature_cols),
+        "elo_ratings": dict(elo_ratings),
+    }
+    pd.to_pickle(
+        context_bundle,
+        target_dir / UPCOMING_CONTEXT_BUNDLE_FILE,
+        compression="gzip",
+    )
+    print(
+        "[artifacts] Contexto historico salvo em: "
+        f"{target_dir / UPCOMING_CONTEXT_BUNDLE_FILE}"
+    )
+
+    if totals_model is not None:
+        pd.to_pickle(
+            {
+                "signature": signature,
+                "feature_names": list(getattr(totals_model, "feature_names_", [])),
+                "model": totals_model,
+            },
+            target_dir / UPCOMING_TOTALS_MODEL_FILE,
+        )
+        print(
+            "[artifacts] Modelo de gols salvo em: "
+            f"{target_dir / UPCOMING_TOTALS_MODEL_FILE}"
+        )
+
+    if result_model is not None:
+        pd.to_pickle(
+            {
+                "signature": signature,
+                "feature_names": list(getattr(result_model, "feature_names_", [])),
+                "model": result_model,
+            },
+            target_dir / UPCOMING_RESULT_MODEL_FILE,
+        )
+        print(
+            "[artifacts] Modelo de 1X2/vitoria salvo em: "
+            f"{target_dir / UPCOMING_RESULT_MODEL_FILE}"
+        )
+
+
+def load_upcoming_prediction_artifacts(
+    config: PipelineConfig,
+) -> tuple[pd.DataFrame, list[str], dict[str, float], Any | None, Any | None]:
+    """Carrega contexto historico e modelos finais salvos no disco."""
+    target_dir = artifact_dir(config.output_dir)
+    context_path = target_dir / UPCOMING_CONTEXT_BUNDLE_FILE
+    if not context_path.exists():
+        raise FileNotFoundError(
+            "Nao encontrei artefatos salvos para palpites rapidos. "
+            "Rode a geracao completa de palpites uma vez antes."
+        )
+
+    signature = build_artifact_signature(config)
+    context_bundle = pd.read_pickle(context_path, compression="gzip")
+    _validate_artifact_signature(
+        signature,
+        dict(context_bundle.get("signature", {})),
+        "contexto historico",
+    )
+
+    totals_model = None
+    result_model = None
+    totals_path = target_dir / UPCOMING_TOTALS_MODEL_FILE
+    result_path = target_dir / UPCOMING_RESULT_MODEL_FILE
+
+    if totals_path.exists():
+        totals_bundle = pd.read_pickle(totals_path)
+        _validate_artifact_signature(
+            signature,
+            dict(totals_bundle.get("signature", {})),
+            "modelo de gols",
+        )
+        totals_model = totals_bundle.get("model")
+
+    if result_path.exists():
+        result_bundle = pd.read_pickle(result_path)
+        _validate_artifact_signature(
+            signature,
+            dict(result_bundle.get("signature", {})),
+            "modelo de 1X2/vitoria",
+        )
+        result_model = result_bundle.get("model")
+
+    print(f"[artifacts] Usando contexto salvo: {context_path}")
+    if totals_model is not None:
+        print(f"[artifacts] Usando modelo salvo de gols: {totals_path}")
+    if result_model is not None:
+        print(f"[artifacts] Usando modelo salvo de 1X2/vitoria: {result_path}")
+
+    return (
+        context_bundle["prepared_data"],
+        list(context_bundle["feature_cols"]),
+        dict(context_bundle["elo_ratings"]),
+        totals_model,
+        result_model,
+    )
 
 
 def _rolling_mean_before_fixture(
@@ -1005,6 +1178,18 @@ def _selected_bookmaker_column(selection: str) -> str:
     return mapping[selection]
 
 
+def _preferred_bookmaker_used(
+    row: pd.Series,
+    actual_bookmaker: object,
+) -> bool:
+    """Indica se a selecao usou de fato a casa preferida."""
+    requested = str(row.get("RequestedBookmaker", "")).strip()
+    actual = str(actual_bookmaker).strip() if pd.notna(actual_bookmaker) else ""
+    if not requested or requested == "Melhor disponivel":
+        return bool(actual)
+    return actual == requested
+
+
 def build_upcoming_context_summary(
     fixtures: pd.DataFrame,
     predictions: pd.DataFrame,
@@ -1019,6 +1204,11 @@ def build_upcoming_context_summary(
     home_col = _selected_odd_column("Casa")
     draw_col = _selected_odd_column("Empate")
     away_col = _selected_odd_column("Fora")
+    over_bookmaker_col = _selected_bookmaker_column("Over 2.5")
+    under_bookmaker_col = _selected_bookmaker_column("Under 2.5")
+    home_bookmaker_col = _selected_bookmaker_column("Casa")
+    draw_bookmaker_col = _selected_bookmaker_column("Empate")
+    away_bookmaker_col = _selected_bookmaker_column("Fora")
 
     totals_available = int(
         fixtures[[over_col, under_col]].notna().all(axis=1).sum()
@@ -1026,9 +1216,32 @@ def build_upcoming_context_summary(
     result_available = int(
         fixtures[[home_col, draw_col, away_col]].notna().all(axis=1).sum()
     ) if not fixtures.empty else 0
+    fallback_fixture_count = 0
+    if (
+        not fixtures.empty
+        and config.preferred_bookmaker
+        and config.allow_bookmaker_fallback
+    ):
+        requested_series = fixtures["RequestedBookmaker"].astype(str).str.strip()
+        fallback_mask = pd.Series(False, index=fixtures.index)
+        for bookmaker_col in [
+            over_bookmaker_col,
+            under_bookmaker_col,
+            home_bookmaker_col,
+            draw_bookmaker_col,
+            away_bookmaker_col,
+        ]:
+            actual_series = fixtures[bookmaker_col].fillna("").astype(str).str.strip()
+            fallback_mask |= actual_series.ne("") & actual_series.ne(requested_series)
+        fallback_fixture_count = int(fallback_mask.sum())
 
     if fixtures.empty:
         message = "Nenhum jogo futuro foi encontrado para a janela escolhida."
+    elif config.preferred_bookmaker and not supported and config.allow_bookmaker_fallback:
+        message = (
+            "A casa escolhida nao aparece na fonte atual. Por isso os palpites "
+            "foram liberados usando outras casas quando houve odds disponiveis."
+        )
     elif config.preferred_bookmaker and not supported:
         message = (
             "A fonte atual do Football-Data nao traz odds da casa escolhida. "
@@ -1038,6 +1251,15 @@ def build_upcoming_context_summary(
         message = (
             "A casa escolhida existe no mapeamento, mas nao apareceu nos jogos "
             "carregados para este periodo."
+        )
+    elif (
+        config.preferred_bookmaker
+        and config.allow_bookmaker_fallback
+        and fallback_fixture_count > 0
+    ):
+        message = (
+            f"{requested} foi priorizada. Quando nao apareceu, o sistema usou "
+            f"outras casas em {fallback_fixture_count} jogos."
         )
     elif config.preferred_bookmaker:
         message = "Palpites calculados usando apenas a casa escolhida."
@@ -1050,6 +1272,8 @@ def build_upcoming_context_summary(
                 "RequestedBookmaker": requested,
                 "UsesPreferredBookmaker": bool(config.preferred_bookmaker),
                 "RequestedBookmakerSupported": float(supported),
+                "AllowBookmakerFallback": bool(config.allow_bookmaker_fallback),
+                "FallbackFixtureCount": fallback_fixture_count,
                 "FixturesLoaded": int(len(fixtures)),
                 "FixturesWithTotalsOdds": totals_available,
                 "FixturesWithResultOdds": result_available,
@@ -1121,7 +1345,10 @@ def score_over25_predictions(
                     "RequestedBookmaker",
                     "Melhor disponivel",
                 ),
-                "PreferredBookmakerAvailable": bool(pd.notna(row[odd_col])),
+                "PreferredBookmakerAvailable": _preferred_bookmaker_used(
+                    row,
+                    row["BestBookmaker"],
+                ),
                 "IsValueBet": row["IsValueBet"],
                 **_rule_columns(filter_rule),
                 "Model_Prob_H": np.nan,
@@ -1197,7 +1424,10 @@ def score_under25_predictions(
                     "RequestedBookmaker",
                     "Melhor disponivel",
                 ),
-                "PreferredBookmakerAvailable": bool(pd.notna(row[odd_col])),
+                "PreferredBookmakerAvailable": _preferred_bookmaker_used(
+                    row,
+                    row["BestBookmaker"],
+                ),
                 "IsValueBet": row["IsValueBet"],
                 **_rule_columns(filter_rule),
                 "Model_Prob_H": np.nan,
@@ -1256,7 +1486,10 @@ def _result_selection_frame(
                     "RequestedBookmaker",
                     "Melhor disponivel",
                 ),
-                "PreferredBookmakerAvailable": bool(pd.notna(odd)),
+                "PreferredBookmakerAvailable": _preferred_bookmaker_used(
+                    row,
+                    row[bookmaker_col],
+                ),
                 "ResultIndex": class_index,
                 "Model_Prob_H": probabilities[row_index, 0],
                 "Model_Prob_D": probabilities[row_index, 1],
@@ -1426,6 +1659,7 @@ def generate_upcoming_predictions(
     config: PipelineConfig,
     days_ahead: int = 7,
     force_refresh_fixtures: bool = False,
+    use_saved_models: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Executa o pipeline completo de palpites futuros."""
     fixtures = load_upcoming_fixtures(
@@ -1434,6 +1668,7 @@ def generate_upcoming_predictions(
         days_ahead=days_ahead,
         force_refresh=force_refresh_fixtures,
         preferred_bookmaker=config.preferred_bookmaker,
+        allow_bookmaker_fallback=config.allow_bookmaker_fallback,
     )
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1463,9 +1698,24 @@ def generate_upcoming_predictions(
     bookmaker_odds = build_bookmaker_odds_long(fixtures)
     bookmaker_odds.to_csv(odds_path, index=False, encoding="utf-8-sig")
 
-    prepared_data, model_data, feature_cols, elo_ratings = build_historical_model_data(
-        config
-    )
+    totals_model = None
+    result_model = None
+    if use_saved_models:
+        (
+            prepared_data,
+            feature_cols,
+            elo_ratings,
+            totals_model,
+            result_model,
+        ) = load_upcoming_prediction_artifacts(config)
+        model_data = pd.DataFrame()
+    else:
+        (
+            prepared_data,
+            model_data,
+            feature_cols,
+            elo_ratings,
+        ) = build_historical_model_data(config)
     fixtures = add_elo_features_to_fixtures(
         fixtures,
         elo_ratings,
@@ -1523,28 +1773,40 @@ def generate_upcoming_predictions(
     prediction_frames: list[pd.DataFrame] = []
 
     if "over25" in config.markets or "under25" in config.markets:
-        over_data, over_feature_cols = prepare_market_dataset(
-            model_data,
-            feature_cols,
-            TARGET_COL,
-            OVER_MARKET_FEATURES,
-        )
-        if not over_data.empty:
-            print("[modelo] Treinando modelo final Over/Under 2.5...")
-            over_model = train_calibrated_xgboost_model(
-                over_data.loc[:, over_feature_cols],
-                over_data[TARGET_COL],
-                config.calibration_size,
-                config.calibration_method,
-                config.xgb_tuning_trials,
-                config.xgb_tuning_validation_size,
-                sample_weight=_training_sample_weights(over_data, config),
+        if totals_model is None:
+            if use_saved_models:
+                raise FileNotFoundError(
+                    "Nao encontrei o modelo salvo de gols. Rode a geracao "
+                    "completa uma vez antes de usar palpites rapidos."
+                )
+            over_data, over_feature_cols = prepare_market_dataset(
+                model_data,
+                feature_cols,
+                TARGET_COL,
+                OVER_MARKET_FEATURES,
             )
+            if not over_data.empty:
+                print("[modelo] Treinando modelo final Over/Under 2.5...")
+                totals_model = train_calibrated_xgboost_model(
+                    over_data.loc[:, over_feature_cols],
+                    over_data[TARGET_COL],
+                    config.calibration_size,
+                    config.calibration_method,
+                    config.xgb_tuning_trials,
+                    config.xgb_tuning_validation_size,
+                    sample_weight=_training_sample_weights(over_data, config),
+                )
+            else:
+                print(
+                    "[aviso] Over/Under 2.5 sem dados/odds suficientes para prever."
+                )
+
+        if totals_model is not None:
             if "over25" in config.markets:
                 prediction_frames.append(
                     score_over25_predictions(
                         featured_fixtures,
-                        over_model,
+                        totals_model,
                         feature_cols,
                         config,
                         _resolve_filter_rule(config, "Over 2.5", optimized_rules),
@@ -1554,33 +1816,41 @@ def generate_upcoming_predictions(
                 prediction_frames.append(
                     score_under25_predictions(
                         featured_fixtures,
-                        over_model,
+                        totals_model,
                         feature_cols,
                         config,
                         _resolve_filter_rule(config, "Under 2.5", optimized_rules),
                     )
                 )
-        else:
-            print("[aviso] Over/Under 2.5 sem dados/odds suficientes para prever.")
 
     if "result" in config.markets or "win" in config.markets:
-        result_data, result_feature_cols = prepare_market_dataset(
-            model_data,
-            feature_cols,
-            RESULT_TARGET_COL,
-            RESULT_MARKET_FEATURES,
-        )
-        if not result_data.empty:
-            print("[modelo] Treinando modelo final 1X2/Vitoria...")
-            result_model = train_calibrated_xgboost_model(
-                result_data.loc[:, result_feature_cols],
-                result_data[RESULT_TARGET_COL],
-                config.calibration_size,
-                config.calibration_method,
-                config.xgb_tuning_trials,
-                config.xgb_tuning_validation_size,
-                sample_weight=_training_sample_weights(result_data, config),
+        if result_model is None:
+            if use_saved_models:
+                raise FileNotFoundError(
+                    "Nao encontrei o modelo salvo de 1X2/vitoria. Rode a "
+                    "geracao completa uma vez antes de usar palpites rapidos."
+                )
+            result_data, result_feature_cols = prepare_market_dataset(
+                model_data,
+                feature_cols,
+                RESULT_TARGET_COL,
+                RESULT_MARKET_FEATURES,
             )
+            if not result_data.empty:
+                print("[modelo] Treinando modelo final 1X2/Vitoria...")
+                result_model = train_calibrated_xgboost_model(
+                    result_data.loc[:, result_feature_cols],
+                    result_data[RESULT_TARGET_COL],
+                    config.calibration_size,
+                    config.calibration_method,
+                    config.xgb_tuning_trials,
+                    config.xgb_tuning_validation_size,
+                    sample_weight=_training_sample_weights(result_data, config),
+                )
+            else:
+                print("[aviso] 1X2/Vitoria sem dados/odds suficientes para prever.")
+
+        if result_model is not None:
             if "result" in config.markets:
                 prediction_frames.append(
                     score_result_predictions(
@@ -1609,8 +1879,6 @@ def generate_upcoming_predictions(
                         ),
                     )
                 )
-        else:
-            print("[aviso] 1X2/Vitoria sem dados/odds suficientes para prever.")
 
     prediction_frames = [frame for frame in prediction_frames if not frame.empty]
     if prediction_frames:
@@ -1633,6 +1901,16 @@ def generate_upcoming_predictions(
     print(f"[saida] Odds por casa salvas em: {odds_path}")
     print(f"[saida] Resumo da casa usada salvo em: {context_path}")
 
+    if not use_saved_models:
+        save_upcoming_prediction_artifacts(
+            config,
+            prepared_data,
+            feature_cols,
+            elo_ratings,
+            totals_model=totals_model,
+            result_model=result_model,
+        )
+
     if not predictions.empty:
         value_bets = int(predictions["IsValueBet"].sum())
         print(f"[palpites] Linhas geradas: {len(predictions):,}")
@@ -1641,7 +1919,7 @@ def generate_upcoming_predictions(
     return predictions, bookmaker_odds
 
 
-def parse_args() -> tuple[PipelineConfig, int, bool]:
+def parse_args() -> tuple[PipelineConfig, int, bool, bool]:
     """Le argumentos de linha de comando."""
     parser = argparse.ArgumentParser(
         description="Gera palpites futuros usando fixtures do Football-Data."
@@ -1774,6 +2052,14 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         ),
     )
     parser.add_argument(
+        "--strict-bookmaker",
+        action="store_true",
+        help=(
+            "Usa somente a casa escolhida. Sem esta flag, o sistema tenta a "
+            "casa preferida e cai para outras casas quando ela nao aparece."
+        ),
+    )
+    parser.add_argument(
         "--min-optimized-eval-roi",
         type=float,
         default=0.0,
@@ -1789,6 +2075,15 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         "--force-refresh-fixtures",
         action="store_true",
         help="Forca novo download do CSV de fixtures.",
+    )
+    parser.add_argument(
+        "--use-saved-models",
+        action="store_true",
+        help=(
+            "Pula o retreino e usa os ultimos modelos finais salvos em "
+            "outputs/upcoming_artifacts. Se ainda nao houver artefatos, "
+            "rode a geracao completa uma vez antes."
+        ),
     )
 
     args = parser.parse_args()
@@ -1846,18 +2141,28 @@ def parse_args() -> tuple[PipelineConfig, int, bool]:
         min_optimized_eval_roi=args.min_optimized_eval_roi,
         min_optimized_eval_bets=args.min_optimized_eval_bets,
         preferred_bookmaker=args.preferred_bookmaker,
+        allow_bookmaker_fallback=not args.strict_bookmaker,
     )
-    return config, args.days_ahead, args.force_refresh_fixtures
+    return (
+        config,
+        args.days_ahead,
+        args.force_refresh_fixtures,
+        args.use_saved_models,
+    )
 
 
 def main() -> None:
     """Ponto de entrada do script."""
-    config, days_ahead, force_refresh_fixtures = parse_args()
-    generate_upcoming_predictions(
-        config,
-        days_ahead=days_ahead,
-        force_refresh_fixtures=force_refresh_fixtures,
-    )
+    config, days_ahead, force_refresh_fixtures, use_saved_models = parse_args()
+    try:
+        generate_upcoming_predictions(
+            config,
+            days_ahead=days_ahead,
+            force_refresh_fixtures=force_refresh_fixtures,
+            use_saved_models=use_saved_models,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

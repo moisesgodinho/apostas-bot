@@ -26,6 +26,7 @@ DEFAULT_XGB_PARAMS = {
     "reg_alpha": 0.0,
     "random_state": 42,
     "n_jobs": -1,
+    "device": "cuda",
     "verbosity": 0,
 }
 XGB_TUNING_GRID = [

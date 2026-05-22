@@ -174,12 +174,15 @@ def bookmaker_is_supported(bookmaker: str | None) -> bool:
 def add_selected_bookmaker_odds(
     fixtures: pd.DataFrame,
     preferred_bookmaker: str | None = None,
+    allow_fallback_to_best: bool = True,
 ) -> pd.DataFrame:
     """Resolve as odds que serao usadas nos palpites futuros.
 
     Quando uma casa preferida e informada, as colunas `Selected_*` usam apenas
     as odds dessa casa. Sem preferencia, elas apontam para a melhor odd
-    disponivel no dataset.
+    disponivel no dataset. Quando o fallback esta liberado, o sistema tenta a
+    casa preferida primeiro e cai para a melhor odd disponivel se ela nao
+    aparecer na fonte atual.
     """
     enriched = fixtures.copy()
     canonical = canonical_bookmaker_name(preferred_bookmaker)
@@ -191,6 +194,7 @@ def add_selected_bookmaker_odds(
     enriched["RequestedBookmaker"] = requested
     enriched["UsesPreferredBookmaker"] = bool(preferred_bookmaker)
     enriched["RequestedBookmakerSupported"] = float(supported)
+    enriched["AllowBookmakerFallback"] = bool(allow_fallback_to_best)
 
     if not preferred_bookmaker:
         for selection, (selected_odd_col, selected_bookmaker_col) in (
@@ -209,29 +213,61 @@ def add_selected_bookmaker_odds(
 
     for selection in ["Casa", "Empate", "Fora"]:
         selected_odd_col, selected_bookmaker_col = SELECTED_SELECTION_COLUMNS[selection]
+        best_odd_col, best_bookmaker_col = BEST_SELECTION_COLUMNS[selection]
         columns = one_x_two_columns.get(selection, [])
-        enriched[selected_odd_col] = enriched.apply(
+        preferred_series = enriched.apply(
             lambda row: _first_valid_odd(row, columns),
             axis=1,
         )
-        enriched[selected_bookmaker_col] = np.where(
-            pd.to_numeric(enriched[selected_odd_col], errors="coerce").notna(),
-            requested,
-            "",
-        )
+        preferred_valid = pd.to_numeric(preferred_series, errors="coerce").notna()
+        if allow_fallback_to_best:
+            best_series = pd.to_numeric(enriched[best_odd_col], errors="coerce")
+            enriched[selected_odd_col] = np.where(
+                preferred_valid,
+                preferred_series,
+                best_series,
+            )
+            enriched[selected_bookmaker_col] = np.where(
+                preferred_valid,
+                requested,
+                enriched[best_bookmaker_col].fillna(""),
+            )
+        else:
+            enriched[selected_odd_col] = preferred_series
+            enriched[selected_bookmaker_col] = np.where(
+                preferred_valid,
+                requested,
+                "",
+            )
 
     for selection in ["Over 2.5", "Under 2.5"]:
         selected_odd_col, selected_bookmaker_col = SELECTED_SELECTION_COLUMNS[selection]
+        best_odd_col, best_bookmaker_col = BEST_SELECTION_COLUMNS[selection]
         columns = totals_columns.get(selection, [])
-        enriched[selected_odd_col] = enriched.apply(
+        preferred_series = enriched.apply(
             lambda row: _first_valid_odd(row, columns),
             axis=1,
         )
-        enriched[selected_bookmaker_col] = np.where(
-            pd.to_numeric(enriched[selected_odd_col], errors="coerce").notna(),
-            requested,
-            "",
-        )
+        preferred_valid = pd.to_numeric(preferred_series, errors="coerce").notna()
+        if allow_fallback_to_best:
+            best_series = pd.to_numeric(enriched[best_odd_col], errors="coerce")
+            enriched[selected_odd_col] = np.where(
+                preferred_valid,
+                preferred_series,
+                best_series,
+            )
+            enriched[selected_bookmaker_col] = np.where(
+                preferred_valid,
+                requested,
+                enriched[best_bookmaker_col].fillna(""),
+            )
+        else:
+            enriched[selected_odd_col] = preferred_series
+            enriched[selected_bookmaker_col] = np.where(
+                preferred_valid,
+                requested,
+                "",
+            )
 
     return enriched
 
@@ -420,6 +456,7 @@ def load_upcoming_fixtures(
     days_ahead: int = 7,
     force_refresh: bool = False,
     preferred_bookmaker: str | None = None,
+    allow_bookmaker_fallback: bool = True,
 ) -> pd.DataFrame:
     """Carrega fixtures futuras do Football-Data com odds normalizadas."""
     file_path = download_fixtures_if_needed(
@@ -497,6 +534,7 @@ def load_upcoming_fixtures(
     fixtures = add_selected_bookmaker_odds(
         fixtures,
         preferred_bookmaker=preferred_bookmaker,
+        allow_fallback_to_best=allow_bookmaker_fallback,
     )
 
     print(

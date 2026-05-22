@@ -255,6 +255,28 @@ def load_optional_csv(path: Path, modified_at: float) -> pd.DataFrame:
     return data
 
 
+def split_stale_upcoming_predictions(
+    data: pd.DataFrame,
+    grace_hours: int = 2,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Separa palpites ainda validos dos que ja ficaram para tras."""
+    if data.empty:
+        return data.copy(), data.copy()
+
+    cutoff = pd.Timestamp.now() - pd.Timedelta(hours=grace_hours)
+    datetime_series = pd.to_datetime(
+        data.get("MatchDatetimeBR", data.get("MatchDatetime")),
+        errors="coerce",
+    )
+    if datetime_series.isna().all():
+        return data.copy(), pd.DataFrame(columns=data.columns)
+
+    stale_mask = datetime_series.lt(cutoff)
+    stale = data[stale_mask].copy()
+    fresh = data[~stale_mask].copy()
+    return fresh, stale
+
+
 def format_money(value: float) -> str:
     """Formata valor monetario em reais."""
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -410,12 +432,14 @@ DECIMAL_STYLE_COLUMNS = {
 STATUS_COLOR_MAP = {
     "+EV": ("#dcfce7", "#166534"),
     "Alta": ("", "#b91c1c"),
+    "Apostar": ("#dcfce7", "#166534"),
     "Baixa": ("", "#64748b"),
     "Bloqueada": ("#fee2e2", "#991b1b"),
     "Confirmada": ("", "#166534"),
     "Green": ("#dcfce7", "#166534"),
     "Liberada": ("#dcfce7", "#166534"),
     "Media": ("", "#b45309"),
+    "Observar": ("", "#b45309"),
     "Overfit": ("#fef3c7", "#92400e"),
     "Passar": ("#f1f5f9", "#475569"),
     "Pouco volume": ("#e2e8f0", "#334155"),
@@ -566,10 +590,266 @@ def sort_table(data: pd.DataFrame, sort_mode: str) -> pd.DataFrame:
     return data.sort_values("MatchDatetime", ascending=False)
 
 
+def build_pipeline_progress_steps(
+    market: str,
+    run_comparison: bool,
+    run_optimization: bool,
+    run_realistic: bool,
+) -> list[tuple[str, float, str]]:
+    """Monta etapas visuais para acompanhar o pipeline no dashboard."""
+    include_totals = market in {"all", "over25", "under25"}
+    include_result = market in {"all", "result", "win"}
+    steps: list[tuple[str, float, str]] = [
+        ("[odds]", 0.12, "Base historica carregada"),
+        ("[understat] xG combinado", 0.20, "xG combinado com o historico"),
+        ("[forca]", 0.28, "Forca dos times pronta"),
+        ("[features] Dataset final modelavel", 0.40, "Features prontas"),
+    ]
+    if include_totals:
+        steps.extend(
+            [
+                (
+                    "[modelo] Treinando XGBClassifier Over 2.5 calibrado...",
+                    0.52,
+                    "Treinando mercado de gols",
+                ),
+                (
+                    "[saida] Backtest Over 2.5 salvo",
+                    0.60,
+                    "Backtest Over 2.5 pronto",
+                ),
+                (
+                    "[saida] Backtest Under 2.5 salvo",
+                    0.66,
+                    "Backtest Under 2.5 pronto",
+                ),
+                (
+                    "[saida] Walk-forward Over 2.5 salvo",
+                    0.71,
+                    "Walk-forward Over 2.5 pronto",
+                ),
+                (
+                    "[saida] Walk-forward Under 2.5 salvo",
+                    0.74,
+                    "Walk-forward Under 2.5 pronto",
+                ),
+            ]
+        )
+    if include_result:
+        steps.extend(
+            [
+                (
+                    "[modelo] Treinando XGBClassifier Resultado Final 1X2 calibrado...",
+                    0.80,
+                    "Treinando 1X2 e vitoria",
+                ),
+                ("[saida] Backtest 1X2 salvo", 0.86, "Backtest 1X2 pronto"),
+                (
+                    "[saida] Backtest Vitoria salvo",
+                    0.89,
+                    "Backtest vitoria pronto",
+                ),
+                (
+                    "[saida] Walk-forward 1X2 salvo",
+                    0.92,
+                    "Walk-forward 1X2 pronto",
+                ),
+                (
+                    "[saida] Walk-forward Vitoria salvo",
+                    0.94,
+                    "Walk-forward vitoria pronto",
+                ),
+            ]
+        )
+    if run_comparison:
+        steps.append(
+            (
+                "[saida] Comparacao de modelos salva",
+                0.96,
+                "Comparando sinais do modelo",
+            )
+        )
+    if run_optimization:
+        steps.extend(
+            [
+                (
+                    "[saida] Otimizacao de filtros salva",
+                    0.97,
+                    "Buscando filtros melhores",
+                ),
+                (
+                    "[saida] Grade de filtros salva",
+                    0.98,
+                    "Resumo dos filtros pronto",
+                ),
+            ]
+        )
+    if run_realistic:
+        steps.append(
+            (
+                "Resumo de backtest realista salvo",
+                0.985,
+                "Backtest realista pronto",
+            )
+        )
+    steps.append(
+        (
+            "[saida] Curvas e metricas de calibracao salvas",
+            0.995,
+            "Fechando arquivos finais",
+        )
+    )
+    return steps
+
+
+def build_upcoming_progress_steps(market: str) -> list[tuple[str, float, str]]:
+    """Monta etapas visuais para acompanhar os palpites futuros."""
+    include_totals = market in {"all", "over25", "under25"}
+    include_result = market in {"all", "result", "win"}
+    steps: list[tuple[str, float, str]] = [
+        ("[fixtures]", 0.15, "Fixtures carregadas"),
+        ("[features] Nenhuma fixture", 0.55, "Fixtures sem historico suficiente"),
+        ("[filtros]", 0.60, "Regras de aposta carregadas"),
+        ("[artifacts] Usando contexto salvo", 0.66, "Usando base historica salva"),
+        ("[artifacts] Usando modelo salvo de gols", 0.72, "Usando modelo salvo de gols"),
+        (
+            "[artifacts] Usando modelo salvo de 1X2/vitoria",
+            0.82,
+            "Usando modelo salvo de resultado",
+        ),
+    ]
+    if include_totals:
+        steps.append(
+            (
+                "[modelo] Treinando modelo final Over/Under 2.5...",
+                0.72,
+                "Treinando mercado de gols",
+            )
+        )
+    if include_result:
+        steps.append(
+            (
+                "[modelo] Treinando modelo final 1X2/Vitoria...",
+                0.84,
+                "Treinando resultado e vitoria",
+            )
+        )
+    steps.extend(
+        [
+            ("[saida] Palpites futuros salvos", 0.95, "Salvando palpites"),
+            ("[palpites] Apostas +EV encontradas", 0.99, "Palpites prontos"),
+        ]
+    )
+    return steps
+
+
+def _progress_from_log_line(
+    line: str,
+    current_progress: float,
+    current_text: str,
+    steps: list[tuple[str, float, str]],
+) -> tuple[float, str]:
+    """Atualiza progresso visual a partir de uma linha de log."""
+    normalized = line.strip()
+    if not normalized:
+        return current_progress, current_text
+
+    if normalized.startswith("[cache]") or normalized.startswith("[download]"):
+        loading_progress = min(max(current_progress, 0.04) + 0.002, 0.10)
+        return loading_progress, "Carregando historico e caches"
+
+    for pattern, target_progress, label in steps:
+        if pattern in normalized and target_progress > current_progress:
+            return target_progress, label
+
+    return current_progress, current_text
+
+
+def run_command_with_live_feedback(
+    command: list[str],
+    cwd: Path,
+    log_key: str,
+    success_message: str,
+    progress_steps: list[tuple[str, float, str]],
+    timeout_seconds: int = 60 * 60 * 3,
+) -> subprocess.CompletedProcess[str]:
+    """Executa um comando local mostrando barra de progresso e log ao vivo."""
+    progress_text = "Iniciando..."
+    progress_value = 0.01
+    progress_bar = st.progress(progress_value, text=progress_text)
+    status_placeholder = st.empty()
+    log_placeholder = st.empty()
+    status_placeholder.caption("Preparando a execucao local.")
+
+    lines: list[str] = []
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+
+    try:
+        stream = process.stdout
+        if stream is not None:
+            for line_number, raw_line in enumerate(stream, start=1):
+                line = raw_line.rstrip()
+                if not line:
+                    continue
+                lines.append(line)
+                progress_value, progress_text = _progress_from_log_line(
+                    line,
+                    progress_value,
+                    progress_text,
+                    progress_steps,
+                )
+                if line_number % 8 == 0 or progress_value >= 0.95:
+                    progress_bar.progress(progress_value, text=progress_text)
+                    status_placeholder.caption(progress_text)
+                    log_placeholder.code("\n".join(lines[-120:]), language="text")
+
+        return_code = process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        lines.append("[erro] Tempo limite atingido durante a execucao.")
+        return_code = 124
+    finally:
+        stdout_text = "\n".join(lines)
+        st.session_state[log_key] = stdout_text[-12000:]
+
+    if return_code != 0:
+        progress_bar.progress(progress_value, text="Execucao terminou com erro")
+        status_placeholder.error("A execucao terminou com erro.")
+        log_placeholder.code(st.session_state[log_key], language="text")
+        return subprocess.CompletedProcess(
+            command,
+            return_code,
+            stdout=stdout_text,
+            stderr="",
+        )
+
+    progress_bar.progress(1.0, text="Execucao concluida")
+    status_placeholder.success(success_message)
+    log_placeholder.code(st.session_state[log_key], language="text")
+    return subprocess.CompletedProcess(
+        command,
+        return_code,
+        stdout=stdout_text,
+        stderr="",
+    )
+
+
 def render_pipeline_runner() -> None:
     """Renderiza controles para atualizar backtests pelo dashboard."""
-    with st.sidebar.expander("Atualizar backtests", expanded=False):
-        st.caption("Roda o pipeline local e atualiza os CSVs em outputs.")
+    with st.sidebar.expander("Atualizar backtests", expanded=True):
+        st.caption(
+            "Roda o pipeline local, atualiza os CSVs em outputs e mostra "
+            "progresso ao vivo."
+        )
         market = st.selectbox(
             "Mercados",
             options=["all", "over25", "under25", "result", "win"],
@@ -669,14 +949,35 @@ def render_pipeline_runner() -> None:
             ),
         )
 
-        run_clicked = st.button(
+        st.caption(
+            "Atalho completo: todos os mercados, ligas e temporadas, com "
+            "comparacao, filtros e backtest realista."
+        )
+        col_run, col_full = st.columns(2)
+        run_clicked = col_run.button(
             "Rodar pipeline",
             type="primary",
             width="stretch",
         )
+        run_full_clicked = col_full.button(
+            "Rodar tudo completo",
+            width="stretch",
+        )
 
-        if not run_clicked:
+        if not run_clicked and not run_full_clicked:
             return
+
+        if run_full_clicked:
+            market = "all"
+            leagues = list(DEFAULT_LEAGUES)
+            seasons = list(DEFAULT_SEASONS)
+            feature_profile = "extended"
+            split_strategy = "season"
+            walk_forward_splits = max(int(walk_forward_splits), 5)
+            xgb_tuning_trials = max(int(xgb_tuning_trials), 4)
+            run_comparison = True
+            run_optimization = True
+            run_realistic = True
 
         if not leagues or not seasons:
             st.error("Selecione ao menos uma liga e uma temporada.")
@@ -715,29 +1016,24 @@ def render_pipeline_runner() -> None:
         if use_clubelo:
             command.append("--use-clubelo")
 
-        with st.spinner("Rodando pipeline. Isso pode levar alguns minutos..."):
-            result = subprocess.run(
-                command,
-                cwd=BASE_DIR,
-                capture_output=True,
-                text=True,
-                timeout=60 * 30,
-                check=False,
-            )
-
-        log_text = "\n".join(
-            part for part in [result.stdout, result.stderr] if part.strip()
+        result = run_command_with_live_feedback(
+            command,
+            cwd=BASE_DIR,
+            log_key="last_pipeline_log",
+            success_message="Backtests atualizados.",
+            progress_steps=build_pipeline_progress_steps(
+                market,
+                run_comparison,
+                run_optimization,
+                run_realistic,
+            ),
+            timeout_seconds=60 * 60 * 3,
         )
-        st.session_state["last_pipeline_log"] = log_text[-8000:]
 
         if result.returncode != 0:
-            st.error("Pipeline terminou com erro.")
-            st.code(st.session_state["last_pipeline_log"], language="text")
             return
 
         st.cache_data.clear()
-        st.success("Backtests atualizados.")
-        st.code(st.session_state["last_pipeline_log"], language="text")
 
 
 def render_upcoming_runner() -> None:
@@ -745,8 +1041,8 @@ def render_upcoming_runner() -> None:
     with st.sidebar.expander("Atualizar palpites futuros", expanded=True):
         st.caption(
             "Usa fixtures publicas do Football-Data. Os palpites futuros "
-            "ficam presos a Betano; se a fonte nao trouxer essa casa, a "
-            "tela mostra isso com clareza."
+            "priorizam Betano e podem usar outras casas quando ela nao "
+            "aparecer na fonte atual."
         )
         market = st.selectbox(
             "Mercados dos palpites",
@@ -794,6 +1090,14 @@ def render_upcoming_runner() -> None:
             "Forcar download das fixtures",
             value=True,
         )
+        allow_bookmaker_fallback = st.checkbox(
+            "Permitir outras casas se faltar Betano",
+            value=True,
+            help=(
+                "Tenta Betano primeiro. Quando ela nao aparecer no Football-Data, "
+                "usa outra casa disponivel para nao deixar os palpites vazios."
+            ),
+        )
         use_optimized_filters = st.checkbox(
             "Usar filtros otimizados positivos",
             value=True,
@@ -806,6 +1110,15 @@ def render_upcoming_runner() -> None:
                 "fallback. A primeira execucao pode demorar mais."
             ),
             key="upcoming_use_clubelo",
+        )
+        use_saved_models = st.checkbox(
+            "Usar modelos salvos (mais rapido)",
+            value=False,
+            help=(
+                "Pula o retreino e usa os ultimos modelos finais salvos. "
+                "Se ainda nao houver artefatos, rode uma vez sem esta opcao."
+            ),
+            key="upcoming_use_saved_models",
         )
         xgb_tuning_trials = st.number_input(
             "Tuning XGBoost",
@@ -846,36 +1159,30 @@ def render_upcoming_runner() -> None:
             "--preferred-bookmaker",
             "Betano",
         ]
+        if not allow_bookmaker_fallback:
+            command.append("--strict-bookmaker")
         if force_refresh:
             command.append("--force-refresh-fixtures")
         if not use_optimized_filters:
             command.append("--ignore-optimized-filters")
         if use_clubelo:
             command.append("--use-clubelo")
+        if use_saved_models:
+            command.append("--use-saved-models")
 
-        with st.spinner("Gerando palpites. O treino pode levar alguns minutos..."):
-            result = subprocess.run(
-                command,
-                cwd=BASE_DIR,
-                capture_output=True,
-                text=True,
-                timeout=60 * 30,
-                check=False,
-            )
-
-        log_text = "\n".join(
-            part for part in [result.stdout, result.stderr] if part.strip()
+        result = run_command_with_live_feedback(
+            command,
+            cwd=BASE_DIR,
+            log_key="last_upcoming_log",
+            success_message="Palpites futuros atualizados.",
+            progress_steps=build_upcoming_progress_steps(market),
+            timeout_seconds=60 * 60,
         )
-        st.session_state["last_upcoming_log"] = log_text[-8000:]
 
         if result.returncode != 0:
-            st.error("Geracao de palpites terminou com erro.")
-            st.code(st.session_state["last_upcoming_log"], language="text")
             return
 
         st.cache_data.clear()
-        st.success("Palpites futuros atualizados.")
-        st.code(st.session_state["last_upcoming_log"], language="text")
 
 
 def load_market_data(market: str) -> pd.DataFrame:
@@ -1912,6 +2219,7 @@ def load_upcoming_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     predictions = load_optional_csv(UPCOMING_PATH, UPCOMING_PATH.stat().st_mtime)
+    stale_predictions = pd.DataFrame()
     if not predictions.empty:
         defaults = {
             "RuleSource": "Legado",
@@ -1946,6 +2254,7 @@ def load_upcoming_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         for column, default_value in defaults.items():
             if column not in predictions.columns:
                 predictions[column] = default_value
+        predictions, stale_predictions = split_stale_upcoming_predictions(predictions)
 
     if UPCOMING_ODDS_PATH.exists():
         odds = load_optional_csv(
@@ -1961,6 +2270,39 @@ def load_upcoming_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         )
     else:
         context = pd.DataFrame()
+
+    if not context.empty:
+        context = context.copy()
+    else:
+        context = pd.DataFrame([{}])
+
+    context.loc[0, "PredictionsFileUpdatedAt"] = pd.Timestamp.fromtimestamp(
+        UPCOMING_PATH.stat().st_mtime
+    )
+    context.loc[0, "FreshPredictionRows"] = int(len(predictions))
+    context.loc[0, "StalePredictionRows"] = int(len(stale_predictions))
+    context.loc[0, "FreshFixtureCount"] = (
+        int(predictions["FixtureId"].nunique()) if not predictions.empty else 0
+    )
+    context.loc[0, "StaleFixtureCount"] = (
+        int(stale_predictions["FixtureId"].nunique())
+        if not stale_predictions.empty
+        else 0
+    )
+    if not stale_predictions.empty:
+        latest_stale = pd.to_datetime(
+            stale_predictions["MatchDatetimeBR"],
+            errors="coerce",
+        ).max()
+        context.loc[0, "LatestStaleMatchDatetimeBR"] = latest_stale
+
+    if not odds.empty and "FixtureId" in odds.columns:
+        valid_fixture_ids = set(predictions.get("FixtureId", pd.Series(dtype=str)))
+        if valid_fixture_ids:
+            odds = odds[odds["FixtureId"].isin(valid_fixture_ids)].copy()
+        else:
+            odds = pd.DataFrame(columns=odds.columns)
+
     return predictions, odds, context
 
 
@@ -1968,7 +2310,28 @@ def use_generated_upcoming_value(data: pd.DataFrame) -> pd.DataFrame:
     """Usa a flag +EV calculada pelo script de palpites."""
     generated = data.copy()
     generated["UiValueBet"] = generated["IsValueBet"].astype(bool)
-    return generated
+    generated["UiEdgeThreshold"] = pd.to_numeric(
+        generated.get("RuleEdgeThreshold", np.nan),
+        errors="coerce",
+    )
+    generated["UiMinModelProb"] = pd.to_numeric(
+        generated.get("RuleMinModelProb", np.nan),
+        errors="coerce",
+    )
+    generated["UiMaxOdd"] = pd.to_numeric(
+        generated.get("RuleMaxOdd", np.nan),
+        errors="coerce",
+    )
+    generated["UiRuleMode"] = generated.get("RuleSource", "Regra atual")
+    generated["UiRuleSummary"] = generated.apply(
+        lambda row: format_upcoming_rule_summary(
+            row.get("UiEdgeThreshold"),
+            row.get("UiMinModelProb"),
+            row.get("UiMaxOdd"),
+        ),
+        axis=1,
+    )
+    return enrich_upcoming_decision_state(generated)
 
 
 def recalculate_upcoming_value(
@@ -1985,7 +2348,125 @@ def recalculate_upcoming_value(
         & recalculated["ModelProb"].ge(min_probability)
         & odd_filter
     )
-    return recalculated
+    recalculated["UiEdgeThreshold"] = float(edge)
+    recalculated["UiMinModelProb"] = float(min_probability)
+    recalculated["UiMaxOdd"] = np.nan if max_odd <= 0 else float(max_odd)
+    recalculated["UiRuleMode"] = "Regra do painel"
+    recalculated["UiRuleSummary"] = format_upcoming_rule_summary(
+        edge,
+        min_probability,
+        np.nan if max_odd <= 0 else max_odd,
+    )
+    return enrich_upcoming_decision_state(recalculated)
+
+
+def _upcoming_recommendation(row: pd.Series) -> str:
+    """Resume se vale apostar, observar ou passar."""
+    if bool(row.get("UiValueBet", False)):
+        return "Apostar"
+
+    edge_gap = pd.to_numeric(row.get("UiEdgeGap"), errors="coerce")
+    prob_gap = pd.to_numeric(row.get("UiProbGap"), errors="coerce")
+    odd_gap = pd.to_numeric(row.get("UiOddGap"), errors="coerce")
+
+    near_edge = pd.isna(edge_gap) or edge_gap >= -0.015
+    near_prob = pd.isna(prob_gap) or prob_gap >= -0.03
+    near_odd = pd.isna(odd_gap) or odd_gap >= -0.10
+    hard_fail = (
+        (pd.notna(edge_gap) and edge_gap < -0.03)
+        or (pd.notna(prob_gap) and prob_gap < -0.06)
+        or (pd.notna(odd_gap) and odd_gap < -0.20)
+    )
+    near_count = sum([bool(near_edge), bool(near_prob), bool(near_odd)])
+    if near_count >= 2 and not hard_fail:
+        return "Observar"
+    return "Passar"
+
+
+def _upcoming_decision_reason(row: pd.Series) -> str:
+    """Explica em linguagem simples por que entrou ou ficou de fora."""
+    decision = str(row.get("UiRecommendation", ""))
+    edge_gap = pd.to_numeric(row.get("UiEdgeGap"), errors="coerce")
+    prob_gap = pd.to_numeric(row.get("UiProbGap"), errors="coerce")
+    odd_gap = pd.to_numeric(row.get("UiOddGap"), errors="coerce")
+    has_odd_limit = pd.notna(row.get("UiMaxOdd")) and float(row.get("UiMaxOdd")) > 0
+
+    if decision == "Apostar":
+        if pd.notna(edge_gap) and pd.notna(prob_gap):
+            if edge_gap >= 0.03 and prob_gap >= 0.05:
+                return "Passou com folga na vantagem e na chance."
+            if edge_gap < 0.01:
+                return "Entrou por pouca folga na vantagem."
+            if prob_gap < 0.02:
+                return "Entrou por pouca folga na chance."
+        return "Passou na regra atual do modelo."
+
+    if decision == "Observar":
+        if has_odd_limit and pd.notna(odd_gap) and odd_gap < 0:
+            return "Quase entrou, mas a odd ficou um pouco alta."
+        if pd.notna(edge_gap) and edge_gap < 0:
+            return "Quase entrou, faltou um pouco de vantagem."
+        if pd.notna(prob_gap) and prob_gap < 0:
+            return "Quase entrou, faltou um pouco de chance."
+        return "Esta perto da regra e vale acompanhar."
+
+    failed_points: list[str] = []
+    if pd.notna(edge_gap) and edge_gap < 0:
+        failed_points.append("vantagem curta")
+    if pd.notna(prob_gap) and prob_gap < 0:
+        failed_points.append("chance baixa")
+    if has_odd_limit and pd.notna(odd_gap) and odd_gap < 0:
+        failed_points.append("odd alta")
+    if not failed_points:
+        return "Ficou fora da regra atual."
+    return "Fora da regra: " + ", ".join(failed_points[:2]) + "."
+
+
+def enrich_upcoming_decision_state(data: pd.DataFrame) -> pd.DataFrame:
+    """Calcula leitura pratica para os palpites futuros."""
+    if data.empty:
+        return data
+
+    enriched = data.copy()
+    numeric_columns = [
+        "Edge",
+        "ModelProb",
+        "ImpliedProb",
+        "BestOdd",
+        "UiEdgeThreshold",
+        "UiMinModelProb",
+        "UiMaxOdd",
+    ]
+    for column in numeric_columns:
+        if column in enriched.columns:
+            enriched[column] = pd.to_numeric(enriched[column], errors="coerce")
+
+    enriched["UiEdgeGap"] = enriched["Edge"] - enriched["UiEdgeThreshold"].fillna(0.0)
+    enriched["UiProbGap"] = (
+        enriched["ModelProb"] - enriched["UiMinModelProb"].fillna(0.0)
+    )
+    has_odd_limit = enriched["UiMaxOdd"].notna() & enriched["UiMaxOdd"].gt(0)
+    enriched["UiOddGap"] = np.where(
+        has_odd_limit,
+        enriched["UiMaxOdd"] - enriched["BestOdd"],
+        np.nan,
+    )
+    enriched["UiRecommendation"] = enriched.apply(_upcoming_recommendation, axis=1)
+    recommendation_order = {"Apostar": 0, "Observar": 1, "Passar": 2}
+    enriched["UiRecommendationRank"] = (
+        enriched["UiRecommendation"].map(recommendation_order).fillna(9).astype(int)
+    )
+    enriched["UiDecisionReason"] = enriched.apply(_upcoming_decision_reason, axis=1)
+    enriched["UiPriorityScore"] = (
+        enriched["UiValueBet"].astype(int) * 100.0
+        + np.where(enriched["UiRecommendation"].eq("Observar"), 20.0, 0.0)
+        + enriched["Edge"].fillna(0.0) * 100.0
+        + enriched["ModelProb"].fillna(0.0) * 20.0
+        + enriched["UiEdgeGap"].fillna(0.0) * 60.0
+        + enriched["UiProbGap"].fillna(0.0) * 40.0
+        + enriched["UiOddGap"].fillna(0.0) * 10.0
+    )
+    return enriched
 
 
 def apply_upcoming_filters(data: pd.DataFrame) -> pd.DataFrame:
@@ -2018,40 +2499,74 @@ def apply_upcoming_filters(data: pd.DataFrame) -> pd.DataFrame:
         min_value=min_date,
         max_value=max_date,
     )
-
-    only_value = st.sidebar.checkbox("Mostrar apenas +EV", value=False)
+    recommendation_options = ["Apostar", "Observar", "Passar"]
+    selected_recommendations = st.sidebar.multiselect(
+        "Leitura",
+        options=recommendation_options,
+        default=recommendation_options,
+    )
 
     filtered = data[
         data["Market"].isin(selected_markets)
         & data["Liga"].isin(selected_leagues)
         & data["MatchDate"].between(start_date, end_date)
     ].copy()
-    if only_value:
-        filtered = filtered[filtered["UiValueBet"]].copy()
+    if "UiRecommendation" in filtered.columns:
+        filtered = filtered[
+            filtered["UiRecommendation"].isin(selected_recommendations)
+        ].copy()
     return filtered
 
 
 def render_upcoming_metrics(data: pd.DataFrame) -> None:
     """Mostra metricas resumidas dos palpites futuros."""
-    value_bets = data[data["UiValueBet"]].copy()
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Palpites", f"{len(data):,}".replace(",", "."))
-    col2.metric("+EV", f"{len(value_bets):,}".replace(",", "."))
-    col3.metric(
-        "Edge medio +EV",
+    value_bets = data[data["UiRecommendation"].eq("Apostar")].copy()
+    watch_bets = data[data["UiRecommendation"].eq("Observar")].copy()
+    pass_bets = data[data["UiRecommendation"].eq("Passar")].copy()
+    now = pd.Timestamp.now()
+    upcoming_48h = data[
+        pd.to_datetime(data["MatchDatetimeBR"], errors="coerce").between(
+            now,
+            now + pd.Timedelta(hours=48),
+        )
+    ]
+
+    row1 = st.columns(4)
+    row1[0].metric("Apostar agora", f"{len(value_bets):,}".replace(",", "."))
+    row1[1].metric("Observar", f"{len(watch_bets):,}".replace(",", "."))
+    row1[2].metric("Passar", f"{len(pass_bets):,}".replace(",", "."))
+    row1[3].metric("Jogos em 48h", f"{len(upcoming_48h):,}".replace(",", "."))
+
+    row2 = st.columns(4)
+    row2[0].metric(
+        "Vantagem media sugerida",
         format_pct(float(value_bets["Edge"].mean()) if len(value_bets) else 0.0),
     )
-    col4.metric(
-        "Odd media +EV",
+    row2[1].metric(
+        "Chance media sugerida",
+        format_pct(
+            float(value_bets["ModelProb"].mean()) if len(value_bets) else 0.0
+        ),
+    )
+    row2[2].metric(
+        "Odd media sugerida",
         f"{float(value_bets['BestOdd'].mean()):.2f}" if len(value_bets) else "0.00",
+    )
+    row2[3].metric(
+        "Mercados ativos",
+        f"{data['Market'].dropna().nunique():.0f}",
     )
 
 
-def rule_filter_label(row: pd.Series) -> str:
-    """Resume a regra usada para classificar +EV."""
-    edge = row.get("RuleEdgeThreshold")
-    probability = row.get("RuleMinModelProb")
-    max_odd = row.get("RuleMaxOdd")
+def format_upcoming_rule_summary(
+    edge: object,
+    probability: object,
+    max_odd: object,
+) -> str:
+    """Resume a regra ativa em linguagem curta."""
+    edge = pd.to_numeric(edge, errors="coerce")
+    probability = pd.to_numeric(probability, errors="coerce")
+    max_odd = pd.to_numeric(max_odd, errors="coerce")
     if pd.isna(edge) and pd.isna(probability) and pd.isna(max_odd):
         return "-"
 
@@ -2059,6 +2574,15 @@ def rule_filter_label(row: pd.Series) -> str:
     prob_text = "-" if pd.isna(probability) else f"{float(probability):.1%}"
     odd_text = "Sem limite" if pd.isna(max_odd) else f"{float(max_odd):.2f}"
     return f"Edge {edge_text} | Prob {prob_text} | Odd {odd_text}"
+
+
+def rule_filter_label(row: pd.Series) -> str:
+    """Resume a regra usada para classificar +EV."""
+    return format_upcoming_rule_summary(
+        row.get("RuleEdgeThreshold"),
+        row.get("RuleMinModelProb"),
+        row.get("RuleMaxOdd"),
+    )
 
 
 def importance_label(value: float) -> str:
@@ -2097,6 +2621,436 @@ def lineup_label(row: pd.Series) -> str:
     return "Provavel"
 
 
+def upcoming_context_label(row: pd.Series) -> str:
+    """Resume contexto util do jogo em uma linha curta."""
+    parts = []
+    importance = row.get("Importancia", "-")
+    if importance != "-":
+        parts.append(f"jogo {str(importance).lower()}")
+    lineup = row.get("Escalacao", "-")
+    if lineup != "-":
+        parts.append(f"escalacao {str(lineup).lower()}")
+    xg_total = pd.to_numeric(
+        row.get("xG_Expected_Total_Match_Roll5"),
+        errors="coerce",
+    )
+    if pd.notna(xg_total) and xg_total > 0:
+        parts.append(f"xG {xg_total:.2f}")
+    return " | ".join(parts[:3]) if parts else "-"
+
+
+def recommendation_markdown(value: str) -> str:
+    """Formata a leitura principal com cor amigavel."""
+    mapping = {
+        "Apostar": ":green[**Apostar agora**]",
+        "Observar": ":orange[**Observar**]",
+        "Passar": ":gray[**Passar**]",
+    }
+    return mapping.get(value, f"**{value}**")
+
+
+def render_upcoming_card_grid(
+    data: pd.DataFrame,
+    recommendation: str,
+    title: str,
+    empty_message: str,
+    limit: int,
+) -> None:
+    """Mostra cards curtos dos jogos mais relevantes por leitura."""
+    subset = data[data["UiRecommendation"].eq(recommendation)].copy()
+    if subset.empty:
+        st.info(empty_message)
+        return
+
+    subset = subset.sort_values(
+        ["UiRecommendationRank", "MatchDatetime", "UiPriorityScore", "Edge"],
+        ascending=[True, True, False, False],
+        kind="mergesort",
+    ).head(limit)
+    st.subheader(title)
+    columns = st.columns(2)
+    for index, (_, row) in enumerate(subset.iterrows()):
+        with columns[index % 2]:
+            with st.container(border=True):
+                st.markdown(recommendation_markdown(str(row["UiRecommendation"])))
+                st.markdown(f"**{row['HomeTeam']} x {row['AwayTeam']}**")
+                st.caption(
+                    f"{row['MatchDatetimeBR']:%d/%m %H:%M} BR | "
+                    f"{row['LigaNome']} | {row['Market']}"
+                )
+                st.write(f"**Palpite:** {row['Selection']}")
+                metrics = st.columns(3)
+                metrics[0].metric("Odd", f"{float(row['BestOdd']):.2f}")
+                metrics[1].metric("Chance", format_pct(float(row["ModelProb"])))
+                metrics[2].metric("Vantagem", format_pct(float(row["Edge"])))
+                st.caption(str(row["UiDecisionReason"]))
+                context = upcoming_context_label(row)
+                if context != "-":
+                    st.caption(context)
+
+
+def render_upcoming_spotlight(data: pd.DataFrame) -> None:
+    """Transforma a lista de palpites em leitura de decisao."""
+    if data.empty:
+        return
+
+    st.subheader("O que fazer agora")
+    st.caption(
+        "Separacao rapida entre o que entrou na regra, o que esta perto e o "
+        "que faz mais sentido deixar passar."
+    )
+    counts = {
+        "Apostar": int(data["UiRecommendation"].eq("Apostar").sum()),
+        "Observar": int(data["UiRecommendation"].eq("Observar").sum()),
+        "Passar": int(data["UiRecommendation"].eq("Passar").sum()),
+    }
+    options = [
+        f"Apostar agora ({counts['Apostar']})",
+        f"Observar ({counts['Observar']})",
+        f"Passar ({counts['Passar']})",
+    ]
+    if counts["Apostar"] > 0:
+        default_option = options[0]
+    elif counts["Observar"] > 0:
+        default_option = options[1]
+    else:
+        default_option = options[2]
+    selected = st.segmented_control(
+        "Leitura principal",
+        options=options,
+        default=default_option,
+        key="upcoming_spotlight_mode",
+        width="stretch",
+    )
+    if selected == options[0]:
+        render_upcoming_card_grid(
+            data,
+            recommendation="Apostar",
+            title="Melhores entradas",
+            empty_message="Nenhum jogo passou na regra atual.",
+            limit=6,
+        )
+    elif selected == options[1]:
+        render_upcoming_card_grid(
+            data,
+            recommendation="Observar",
+            title="Jogos que estao perto",
+            empty_message="Nenhum jogo ficou perto da regra atual.",
+            limit=4,
+        )
+    else:
+        render_upcoming_card_grid(
+            data,
+            recommendation="Passar",
+            title="Jogos para deixar passar",
+            empty_message="Nenhum jogo ficou claramente fora da regra.",
+            limit=4,
+        )
+
+
+def probability_to_decimal_odd(probability: object) -> float:
+    """Converte probabilidade em odd decimal, quando possivel."""
+    probability = pd.to_numeric(probability, errors="coerce")
+    if pd.isna(probability):
+        return np.nan
+
+    probability_value = float(probability)
+    if probability_value <= 0:
+        return np.nan
+    return 1.0 / probability_value
+
+
+def required_odd_for_edge(
+    model_probability: object,
+    edge_threshold: object,
+) -> float:
+    """Calcula a odd minima para bater o edge da regra atual."""
+    model_probability = pd.to_numeric(model_probability, errors="coerce")
+    edge_threshold = pd.to_numeric(edge_threshold, errors="coerce")
+    if pd.isna(model_probability) or pd.isna(edge_threshold):
+        return np.nan
+
+    target_probability = float(model_probability) - float(edge_threshold)
+    if target_probability <= 0:
+        return np.nan
+    return 1.0 / target_probability
+
+
+def manual_upcoming_option_label(row: pd.Series) -> str:
+    """Monta o rotulo do seletor de odd manual."""
+    kickoff = pd.to_datetime(row.get("MatchDatetimeBR"), errors="coerce")
+    kickoff_text = (
+        kickoff.strftime("%d/%m %H:%M BR")
+        if pd.notna(kickoff)
+        else "Sem horario"
+    )
+    league_name = str(row.get("LigaNome", row.get("Liga", "-")))
+    recommendation = str(row.get("UiRecommendation", "-"))
+    return (
+        f"[{recommendation}] {kickoff_text} | {league_name} | "
+        f"{row['HomeTeam']} x {row['AwayTeam']} | "
+        f"{row['Market']} -> {row['Selection']}"
+    )
+
+
+def evaluate_manual_upcoming_odd(
+    row: pd.Series,
+    manual_odd: float,
+    bookmaker_name: str,
+) -> pd.Series:
+    """Recalcula um palpite futuro usando a odd digitada pelo usuario."""
+    manual_row = row.copy()
+    odd_value = pd.to_numeric(manual_odd, errors="coerce")
+    manual_row["BestOdd"] = odd_value
+    manual_row["BestBookmaker"] = bookmaker_name.strip() or "Sua casa"
+    if pd.notna(odd_value) and float(odd_value) > 1.0:
+        manual_row["ImpliedProb"] = 1.0 / float(odd_value)
+    else:
+        manual_row["ImpliedProb"] = np.nan
+    manual_row["Edge"] = (
+        pd.to_numeric(manual_row.get("ModelProb"), errors="coerce")
+        - pd.to_numeric(manual_row.get("ImpliedProb"), errors="coerce")
+    )
+    evaluated = enrich_upcoming_decision_state(pd.DataFrame([manual_row])).iloc[0]
+    return evaluated
+
+
+def render_manual_odds_evaluator(data: pd.DataFrame) -> None:
+    """Permite testar manualmente a odd da casa usada pelo usuario."""
+    if data.empty:
+        return
+
+    ordered = (
+        data.sort_values(
+            ["UiRecommendationRank", "MatchDatetime", "UiPriorityScore", "Edge"],
+            ascending=[True, True, False, False],
+            kind="mergesort",
+        )
+        .reset_index(drop=True)
+        .copy()
+    )
+    ordered["ManualOptionLabel"] = ordered.apply(
+        manual_upcoming_option_label,
+        axis=1,
+    )
+
+    requested_bookmakers = [
+        str(value).strip()
+        for value in ordered.get("RequestedBookmaker", pd.Series(dtype=str))
+        .dropna()
+        .unique()
+        .tolist()
+        if str(value).strip()
+    ]
+    default_bookmaker = requested_bookmakers[0] if requested_bookmakers else "Sua casa"
+
+    st.subheader("Testar a odd da sua casa")
+    st.caption(
+        "Escolha um palpite, digite a odd que voce encontrou e veja na hora "
+        "se ainda vale apostar."
+    )
+
+    selector_col, bookmaker_col = st.columns((2.2, 1.0))
+    with selector_col:
+        selected_index = st.selectbox(
+            "Palpite para comparar",
+            options=ordered.index.tolist(),
+            format_func=lambda idx: ordered.loc[idx, "ManualOptionLabel"],
+            key="manual_upcoming_pick",
+        )
+    with bookmaker_col:
+        bookmaker_name = st.text_input(
+            "Casa que voce quer testar",
+            value=default_bookmaker,
+            key="manual_upcoming_bookmaker",
+        )
+
+    selected_row = ordered.loc[int(selected_index)].copy()
+    source_odd = pd.to_numeric(selected_row.get("BestOdd"), errors="coerce")
+    source_bookmaker = str(selected_row.get("BestBookmaker", "Fonte atual")).strip()
+    model_probability = pd.to_numeric(selected_row.get("ModelProb"), errors="coerce")
+    fair_odd = probability_to_decimal_odd(model_probability)
+    entry_odd = required_odd_for_edge(
+        model_probability,
+        selected_row.get("UiEdgeThreshold"),
+    )
+
+    odds_col, info_col = st.columns((1.0, 1.6))
+    with odds_col:
+        manual_odd = st.number_input(
+            "Odd manual",
+            min_value=1.01,
+            max_value=50.0,
+            value=(
+                round(float(source_odd), 2)
+                if pd.notna(source_odd) and float(source_odd) > 1.0
+                else 2.00
+            ),
+            step=0.01,
+            key=f"manual_upcoming_odd_{selected_row['FixtureId']}_{selected_row['Market']}_{selected_row['Selection']}",
+        )
+    with info_col:
+        source_odd_text = f"{source_odd:.2f}" if pd.notna(source_odd) else "-"
+        st.markdown(
+            f"**{selected_row['HomeTeam']} x {selected_row['AwayTeam']}**"
+        )
+        st.caption(
+            f"{selected_row['MatchDatetimeBR']:%d/%m %H:%M} BR | "
+            f"{selected_row['LigaNome']} | {selected_row['Market']}"
+        )
+        st.write(
+            f"Palpite do modelo: **{selected_row['Selection']}** | "
+            f"Fonte atual: **{source_bookmaker} @ {source_odd_text}**"
+        )
+
+    evaluated = evaluate_manual_upcoming_odd(
+        selected_row,
+        float(manual_odd),
+        bookmaker_name,
+    )
+    manual_probability = pd.to_numeric(evaluated.get("ImpliedProb"), errors="coerce")
+    manual_edge = pd.to_numeric(evaluated.get("Edge"), errors="coerce")
+    manual_expected_roi = (
+        model_probability * float(manual_odd) - 1.0
+        if pd.notna(model_probability)
+        else np.nan
+    )
+    expected_profit_10 = (
+        manual_expected_roi * 10.0 if pd.notna(manual_expected_roi) else np.nan
+    )
+
+    decision_text = str(evaluated.get("UiRecommendation", "-"))
+    decision_message = (
+        "Na regra atual do painel: "
+        + decision_text
+        + ". "
+        + str(evaluated.get("UiDecisionReason", "")).strip()
+    )
+    if decision_text == "Apostar":
+        st.success(decision_message)
+    elif decision_text == "Observar":
+        st.warning(decision_message)
+    else:
+        st.info(decision_message)
+
+    raw_value_text = (
+        "Com essa odd, a conta pura fica positiva."
+        if pd.notna(manual_edge) and float(manual_edge) > 0
+        else "Com essa odd, a conta pura ainda nao fica positiva."
+    )
+    if pd.notna(manual_edge) and float(manual_edge) > 0:
+        st.success(raw_value_text)
+    else:
+        st.warning(raw_value_text)
+
+    row1 = st.columns(4)
+    row1[0].metric("Sua odd", f"{float(manual_odd):.2f}")
+    row1[1].metric(
+        "Chance do modelo",
+        format_pct(float(model_probability)) if pd.notna(model_probability) else "-",
+    )
+    row1[2].metric(
+        "Chance da sua casa",
+        format_pct(float(manual_probability)) if pd.notna(manual_probability) else "-",
+    )
+    row1[3].metric(
+        "Vantagem",
+        format_pct(float(manual_edge)) if pd.notna(manual_edge) else "-",
+    )
+
+    row2 = st.columns(4)
+    row2[0].metric(
+        "Odd justa do modelo",
+        f"{fair_odd:.2f}" if pd.notna(fair_odd) else "-",
+    )
+    row2[1].metric(
+        "Odd minima pela vantagem",
+        f"{entry_odd:.2f}" if pd.notna(entry_odd) else "-",
+        (
+            f"{float(manual_odd) - entry_odd:+.2f}"
+            if pd.notna(entry_odd)
+            else None
+        ),
+    )
+    row2[2].metric(
+        "Lucro esperado em R$ 10",
+        format_money(float(expected_profit_10))
+        if pd.notna(expected_profit_10)
+        else "-",
+    )
+    row2[3].metric(
+        "Vs odd da fonte",
+        (
+            f"{float(manual_odd) - float(source_odd):+.2f}"
+            if pd.notna(source_odd)
+            else "-"
+        ),
+    )
+
+    if pd.notna(entry_odd):
+        if float(manual_odd) >= float(entry_odd):
+            st.caption(
+                "Sua odd passou da linha minima da regra pela vantagem."
+            )
+        else:
+            st.caption(
+                "Para esse mesmo palpite entrar com folga na regra atual, "
+                f"sua odd precisaria chegar perto de {entry_odd:.2f}."
+            )
+
+    comparison = pd.DataFrame(
+        [
+            {
+                "Cenario": "Fonte atual",
+                "Casa": source_bookmaker,
+                "Odd": source_odd,
+                "ChanceCasaPct": (
+                    pd.to_numeric(selected_row.get("ImpliedProb"), errors="coerce")
+                    * 100.0
+                ),
+                "VantagemPct": np.nan,
+                "Leitura": str(selected_row.get("UiRecommendation", "-")),
+            },
+            {
+                "Cenario": "Sua odd",
+                "Casa": bookmaker_name.strip() or "Sua casa",
+                "Odd": float(manual_odd),
+                "ChanceCasaPct": (
+                    float(manual_probability) * 100.0
+                    if pd.notna(manual_probability)
+                    else np.nan
+                ),
+                "VantagemPct": (
+                    float(manual_edge) * 100.0 if pd.notna(manual_edge) else np.nan
+                ),
+                "Leitura": decision_text,
+            },
+        ]
+    )
+    comparison.loc[0, "VantagemPct"] = (
+        pd.to_numeric(selected_row.get("Edge"), errors="coerce") * 100.0
+    )
+    st.dataframe(
+        style_dashboard_table(comparison),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Cenario": "Comparacao",
+            "Casa": "Casa",
+            "Odd": st.column_config.NumberColumn("Odd", format="%.2f"),
+            "ChanceCasaPct": st.column_config.NumberColumn(
+                "Chance da casa",
+                format="%.1f%%",
+            ),
+            "VantagemPct": st.column_config.NumberColumn(
+                "Vantagem",
+                format="%.1f%%",
+            ),
+            "Leitura": "Leitura",
+        },
+    )
+
+
 def render_upcoming_table(data: pd.DataFrame) -> None:
     """Mostra tabela principal de palpites futuros."""
     if data.empty:
@@ -2104,25 +3058,25 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
         return
 
     st.subheader("Palpites futuros")
-    col1, col2, col3 = st.columns((1.3, 1.0, 0.8))
+    col1, col2, col3, col4 = st.columns((1.3, 1.0, 0.8, 0.9))
     with col1:
         sort_mode = st.segmented_control(
             "Ordenar palpites",
             options=[
-                "+EV primeiro",
+                "Melhores agora",
                 "Proximos",
-                "Maior edge",
-                "Maior prob.",
+                "Maior vantagem",
+                "Maior chance",
                 "Melhor odd",
             ],
-            default="+EV primeiro",
+            default="Melhores agora",
             key="upcoming_table_sort",
             width="stretch",
         )
     with col2:
         decision = st.pills(
             "Decisao",
-            options=["Todos", "+EV", "Sem +EV"],
+            options=["Todos", "Apostar", "Observar", "Passar"],
             default="Todos",
             key="upcoming_table_decision",
             width="stretch",
@@ -2130,9 +3084,15 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
     with col3:
         row_limit = st.selectbox(
             "Linhas",
-            options=[25, 50, 100, 250],
+            options=[20, 40, 80, 150],
             index=1,
             key="upcoming_table_rows",
+        )
+    with col4:
+        show_advanced = st.toggle(
+            "Mais contexto",
+            value=False,
+            key="upcoming_table_advanced",
         )
     query = st.text_input(
         "Buscar time, liga ou mercado",
@@ -2142,13 +3102,20 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
 
     table = data.copy()
     table["Jogo"] = table.apply(match_name, axis=1)
-    table["Decisao"] = table["UiValueBet"].map({True: "+EV", False: "Passar"})
+    table["Decisao"] = table["UiRecommendation"]
     table["Importancia"] = table["MatchImportance"].map(importance_label)
     table["Escalacao"] = table.apply(lineup_label, axis=1)
-    table["RegraFiltro"] = table.apply(rule_filter_label, axis=1)
+    table["LeituraRapida"] = table["UiDecisionReason"]
+    table["Contexto"] = table.apply(upcoming_context_label, axis=1)
+    table["RegraFiltro"] = table.get("UiRuleSummary", table.apply(rule_filter_label, axis=1))
     table["ValueGap"] = table["ModelProb"] - table["ImpliedProb"]
     table["EdgeTable"] = table["Edge"]
     table["OddTable"] = table["BestOdd"]
+    table["ChanceModeloPct"] = table["ModelProb"] * 100.0
+    table["ChanceCasaPct"] = table["ImpliedProb"] * 100.0
+    table["VantagemPct"] = table["Edge"] * 100.0
+    table["FolgaChancePct"] = table["UiProbGap"] * 100.0
+    table["FolgaVantagemPct"] = table["UiEdgeGap"] * 100.0
     for optional_col in [
         "TeamStrength_Diff",
         "TeamStrength_Expected_Home",
@@ -2156,50 +3123,67 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
     ]:
         if optional_col not in table.columns:
             table[optional_col] = np.nan
-    if decision == "+EV":
-        table = table[table["UiValueBet"]].copy()
-    elif decision == "Sem +EV":
-        table = table[~table["UiValueBet"]].copy()
+    if decision != "Todos":
+        table = table[table["UiRecommendation"].eq(decision)].copy()
     table = apply_text_search(
         table,
         query,
         ["LigaNome", "HomeTeam", "AwayTeam", "Market", "Selection", "Jogo"],
     )
-    table = sort_table(table, sort_mode).head(row_limit)
-    table = table[
-        [
-            "MatchDatetimeBR",
-            "LigaNome",
-            "Jogo",
-            "Market",
-            "Selection",
-            "Decisao",
-            "Importancia",
-            "MatchImportance",
-            "Escalacao",
-            "LineupStrength_Diff",
-            "MissingKeyPlayers_Diff",
-            "xG_Expected_Total_Match_Roll5",
-            "xG_Diff_Roll5",
-            "Home_PreMatch_Rank",
-            "Away_PreMatch_Rank",
-            "RuleSource",
-            "RegraFiltro",
-            "TeamStrength_Diff",
-            "TeamStrength_Expected_Home",
-            "ClubElo_DataAvailable",
-            "Elo_Diff",
-            "Elo_Expected_Home",
-            "BestBookmaker",
-            "BestOdd",
-            "ModelProb",
-            "ImpliedProb",
-            "ValueGap",
-            "Edge",
-            "RuleEvalROI",
-            "RuleEvalBets",
-        ]
+    if sort_mode == "Melhores agora":
+        table = table.sort_values(
+            ["UiRecommendationRank", "MatchDatetime", "UiPriorityScore", "Edge"],
+            ascending=[True, True, False, False],
+            kind="mergesort",
+        )
+    elif sort_mode == "Maior vantagem":
+        table = table.sort_values("EdgeTable", ascending=False, kind="mergesort")
+    elif sort_mode == "Maior chance":
+        table = table.sort_values("ModelProb", ascending=False, kind="mergesort")
+    elif sort_mode == "Melhor odd":
+        table = table.sort_values("OddTable", ascending=False, kind="mergesort")
+    else:
+        table = table.sort_values("MatchDatetime", ascending=True, kind="mergesort")
+    table = table.head(row_limit)
+    base_columns = [
+        "MatchDatetimeBR",
+        "LigaNome",
+        "Jogo",
+        "Market",
+        "Selection",
+        "Decisao",
+        "LeituraRapida",
+        "Contexto",
+        "BestBookmaker",
+        "BestOdd",
+        "ChanceModeloPct",
+        "ChanceCasaPct",
+        "VantagemPct",
+        "UiRuleMode",
+        "RegraFiltro",
     ]
+    advanced_columns = [
+        "FolgaChancePct",
+        "FolgaVantagemPct",
+        "Importancia",
+        "MatchImportance",
+        "Escalacao",
+        "LineupStrength_Diff",
+        "MissingKeyPlayers_Diff",
+        "xG_Expected_Total_Match_Roll5",
+        "xG_Diff_Roll5",
+        "Home_PreMatch_Rank",
+        "Away_PreMatch_Rank",
+        "TeamStrength_Diff",
+        "TeamStrength_Expected_Home",
+        "ClubElo_DataAvailable",
+        "Elo_Diff",
+        "Elo_Expected_Home",
+        "RuleEvalROI",
+        "RuleEvalBets",
+    ]
+    visible_columns = base_columns + (advanced_columns if show_advanced else [])
+    table = table[visible_columns]
 
     st.dataframe(
         style_dashboard_table(table),
@@ -2210,8 +3194,34 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
             "LigaNome": "Liga",
             "Jogo": "Jogo",
             "Market": "Mercado",
-            "Selection": "Selecao",
-            "Decisao": "Decisao",
+            "Selection": "Palpite",
+            "Decisao": "Leitura",
+            "LeituraRapida": "Por que",
+            "Contexto": "Contexto",
+            "BestBookmaker": "Casa usada",
+            "BestOdd": st.column_config.NumberColumn("Odd usada", format="%.2f"),
+            "ChanceModeloPct": st.column_config.NumberColumn(
+                "Chance do modelo",
+                format="%.1f%%",
+            ),
+            "ChanceCasaPct": st.column_config.NumberColumn(
+                "Chance da casa",
+                format="%.1f%%",
+            ),
+            "VantagemPct": st.column_config.NumberColumn(
+                "Vantagem",
+                format="%.1f%%",
+            ),
+            "UiRuleMode": "Regra",
+            "RegraFiltro": "Limites",
+            "FolgaChancePct": st.column_config.NumberColumn(
+                "Folga na chance",
+                format="%.1f%%",
+            ),
+            "FolgaVantagemPct": st.column_config.NumberColumn(
+                "Folga na vantagem",
+                format="%.1f%%",
+            ),
             "Importancia": "Importancia",
             "MatchImportance": st.column_config.ProgressColumn(
                 "Imp.",
@@ -2244,8 +3254,6 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
                 "Rank fora",
                 format="%.0f",
             ),
-            "RuleSource": "Regra",
-            "RegraFiltro": "Filtro",
             "TeamStrength_Diff": st.column_config.NumberColumn(
                 "Forca real",
                 format="%.0f",
@@ -2267,25 +3275,6 @@ def render_upcoming_table(data: pd.DataFrame) -> None:
                 min_value=0.0,
                 max_value=1.0,
             ),
-            "BestBookmaker": "Casa usada",
-            "BestOdd": st.column_config.NumberColumn("Odd usada", format="%.2f"),
-            "ModelProb": st.column_config.ProgressColumn(
-                "Prob. modelo",
-                format="%.2f",
-                min_value=0.0,
-                max_value=1.0,
-            ),
-            "ImpliedProb": st.column_config.ProgressColumn(
-                "Prob. implicita",
-                format="%.2f",
-                min_value=0.0,
-                max_value=1.0,
-            ),
-            "ValueGap": st.column_config.NumberColumn(
-                "Modelo - mercado",
-                format="%.3f",
-            ),
-            "Edge": st.column_config.NumberColumn("Edge", format="%.3f"),
             "RuleEvalROI": st.column_config.NumberColumn(
                 "ROI aval.",
                 format="%.3f",
@@ -2305,17 +3294,21 @@ def render_upcoming_charts(data: pd.DataFrame) -> None:
 
     left, right = st.columns(2)
     with left:
+        plot_data = data.copy()
+        plot_data["ChanceModeloPct"] = plot_data["ModelProb"] * 100.0
+        plot_data["VantagemPct"] = plot_data["Edge"] * 100.0
         fig = px.scatter(
-            data,
-            x="ModelProb",
-            y="Edge",
-            color="Market",
-            symbol="UiValueBet",
+            plot_data,
+            x="ChanceModeloPct",
+            y="VantagemPct",
+            color="UiRecommendation",
+            symbol="Market",
             hover_data=[
                 "LigaNome",
                 "HomeTeam",
                 "AwayTeam",
                 "Selection",
+                "UiDecisionReason",
                 "RuleSource",
                 "Elo_Diff",
                 "MatchImportance",
@@ -2327,22 +3320,29 @@ def render_upcoming_charts(data: pd.DataFrame) -> None:
                 "BestOdd",
             ],
             labels={
-                "ModelProb": "Probabilidade do modelo",
-                "Edge": "Edge",
+                "ChanceModeloPct": "Chance do modelo",
+                "VantagemPct": "Vantagem",
                 "MatchImportance": "Importancia",
                 "LineupStrength_Diff": "Forca XI",
                 "MissingKeyPlayers_Diff": "Desfalques-chave",
                 "xG_Expected_Total_Match_Roll5": "xG total",
                 "xG_Diff_Roll5": "xG diff",
                 "Market": "Mercado",
+                "UiRecommendation": "Leitura",
             },
-            title="Probabilidade vs. edge",
+            title="Chance x vantagem",
+            color_discrete_map={
+                "Apostar": "#16a34a",
+                "Observar": "#d97706",
+                "Passar": "#64748b",
+            },
         )
+        fig.add_hline(y=0, line_dash="dot", line_color="gray")
         st.plotly_chart(fig, width="stretch")
 
     with right:
         summary = (
-            data.groupby(["Market", "UiValueBet"], as_index=False)
+            data.groupby(["Market", "UiRecommendation"], as_index=False)
             .size()
             .rename(columns={"size": "Palpites"})
         )
@@ -2350,9 +3350,15 @@ def render_upcoming_charts(data: pd.DataFrame) -> None:
             summary,
             x="Market",
             y="Palpites",
-            color="UiValueBet",
-            labels={"Market": "Mercado", "UiValueBet": "+EV"},
-            title="Volume por mercado",
+            color="UiRecommendation",
+            barmode="stack",
+            labels={"Market": "Mercado", "UiRecommendation": "Leitura"},
+            title="Volume por leitura",
+            color_discrete_map={
+                "Apostar": "#16a34a",
+                "Observar": "#d97706",
+                "Passar": "#64748b",
+            },
         )
         st.plotly_chart(fig, width="stretch")
 
@@ -4677,7 +5683,10 @@ def render_realistic_backtest_page() -> None:
 def render_upcoming_page() -> None:
     """Renderiza a pagina de palpites futuros."""
     st.title("Apostasbot | Palpites futuros +EV")
-    st.caption("Jogos futuros, probabilidades do modelo e odds da casa usada.")
+    st.caption(
+        "Jogos futuros organizados para decidir rapido o que apostar, o que "
+        "acompanhar e o que deixar passar."
+    )
     render_upcoming_runner()
 
     predictions, odds, context = load_upcoming_data()
@@ -4685,11 +5694,56 @@ def render_upcoming_page() -> None:
         summary = context.iloc[0]
         requested = str(summary.get("RequestedBookmaker", "Melhor disponivel"))
         message = str(summary.get("Message", "")).strip()
+        allow_fallback_flag = bool(summary.get("AllowBookmakerFallback", False))
+        stale_rows_value = pd.to_numeric(
+            summary.get("StalePredictionRows", 0),
+            errors="coerce",
+        )
+        fresh_rows_value = pd.to_numeric(
+            summary.get("FreshPredictionRows", 0),
+            errors="coerce",
+        )
+        stale_rows = 0 if pd.isna(stale_rows_value) else int(stale_rows_value)
+        fresh_rows = 0 if pd.isna(fresh_rows_value) else int(fresh_rows_value)
         if message:
             if bool(summary.get("UsesPreferredBookmaker", False)):
-                st.info(f"Casa usada nos palpites: {requested}. {message}")
+                label = (
+                    "Casa preferida nos palpites"
+                    if allow_fallback_flag
+                    else "Casa usada nos palpites"
+                )
+                st.info(f"{label}: {requested}. {message}")
             else:
                 st.info(message)
+        if stale_rows > 0 and fresh_rows == 0:
+            latest_stale = pd.to_datetime(
+                summary.get("LatestStaleMatchDatetimeBR"),
+                errors="coerce",
+            )
+            updated_at = pd.to_datetime(
+                summary.get("PredictionsFileUpdatedAt"),
+                errors="coerce",
+            )
+            stale_text = (
+                latest_stale.strftime("%d/%m %H:%M BR")
+                if pd.notna(latest_stale)
+                else "data desconhecida"
+            )
+            updated_text = (
+                updated_at.strftime("%d/%m %H:%M")
+                if pd.notna(updated_at)
+                else "horario desconhecido"
+            )
+            st.warning(
+                "Os palpites salvos ficaram antigos e foram escondidos da tela. "
+                f"O ultimo jogo desse arquivo era de {stale_text}. "
+                f"Arquivo atualizado em {updated_text}. Gere novos palpites."
+            )
+        elif stale_rows > 0:
+            st.caption(
+                f"{stale_rows:,}".replace(",", ".")
+                + " palpites antigos foram ocultados automaticamente."
+            )
     if predictions.empty:
         if context.empty:
             st.info("Gere os palpites futuros pelo painel lateral para criar os CSVs.")
@@ -4737,6 +5791,10 @@ def render_upcoming_page() -> None:
     filtered = apply_upcoming_filters(recalculated)
 
     render_upcoming_metrics(filtered)
+    st.divider()
+    render_upcoming_spotlight(filtered)
+    st.divider()
+    render_manual_odds_evaluator(filtered)
     st.divider()
     render_upcoming_charts(filtered)
     st.divider()

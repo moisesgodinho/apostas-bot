@@ -1,0 +1,2 @@
+﻿RequestedBookmaker,UsesPreferredBookmaker,RequestedBookmakerSupported,AllowBookmakerFallback,FallbackFixtureCount,FixturesLoaded,FixturesWithTotalsOdds,FixturesWithResultOdds,PredictionRows,Message
+Betano,True,0.0,True,46,46,46,46,184,A casa escolhida nao aparece na fonte atual. Por isso os palpites foram liberados usando outras casas quando houve odds disponiveis.
